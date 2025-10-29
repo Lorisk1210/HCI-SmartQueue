@@ -116,7 +116,7 @@ export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinu
             <div className="mt-8 flex flex-col items-center gap-4">
               <Qr text={ticketUrl} size={220} />
               <div className="text-sm text-neutral-600 w-[min(90vw,420px)]">
-                Scan this QR code on your phone (connected to the same WiFi) to track your position live.
+                Scan this QR code on your phone to track your position live.
               </div>
               <button
                 onClick={handleLeaveQueue}
