@@ -71,7 +71,8 @@ export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinu
 
   const ticketUrl = useMemo(() => {
     if (!uid || !ticketBase) return "";
-    return `${ticketBase}/ticket/${uid}`;
+    const encoded = encodeURIComponent(uid);
+    return `${ticketBase}/ticket/${encoded}`;
   }, [uid, ticketBase]);
 
   async function handleLeaveQueue() {

@@ -6,7 +6,10 @@ import { useTicket } from "@/app/hooks/useTicket";
 
 export default function TicketPage() {
   const params = useParams<{ uid: string }>();
-  const uid = params.uid;
+  const raw = params.uid;
+  let decoded = typeof raw === 'string' ? raw : '';
+  try { decoded = decodeURIComponent(decoded); } catch (_) {}
+  const uid = decoded.toUpperCase();
   const { queuePosition, inside, freeSlots, maxSlots, inCount, isTurn } = useTicket(uid);
 
   const title = inside ? "You're inside" : (queuePosition === -1 ? "Not in queue" : `You're #${queuePosition}`);

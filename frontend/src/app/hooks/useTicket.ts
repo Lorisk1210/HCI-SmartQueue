@@ -29,8 +29,9 @@ export function useTicket(uid: string): TicketStatus {
   useEffect(() => {
     manager.connect();
     const off = manager.on("state:update", (s: ArduinoState) => {
-      const posIdx = s.queue.findIndex((x) => x === uid);
-      const inIdx = s.in.findIndex((x) => x === uid);
+      const id = uid.toUpperCase();
+      const posIdx = s.queue.findIndex((x) => (x || '').toUpperCase() === id);
+      const inIdx = s.in.findIndex((x) => (x || '').toUpperCase() === id);
       const queuePosition = posIdx >= 0 ? posIdx + 1 : -1;
       const inside = inIdx >= 0;
       const freeSlots = s.freeSlots;
