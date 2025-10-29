@@ -1,4 +1,4 @@
-type ArduinoState = {
+export type ArduinoState = {
   freeSlots: number;
   inCount: number;
   maxSlots: number;
@@ -50,6 +50,7 @@ type Handlers = {
   'rfid:scan': Set<EventHandler<RfidScan>>;
   'system:heartbeat': Set<EventHandler<{ intervalMs: number }>>;
   'system:error': Set<EventHandler<{ code: string; message: string }>>;
+  'state:update': Set<EventHandler<ArduinoState>>;
 };
 
 const CHANNEL_NAME = 'sse-events';
@@ -70,6 +71,7 @@ export class StreamManager {
     'rfid:scan': new Set(),
     'system:heartbeat': new Set(),
     'system:error': new Set(),
+    'state:update': new Set(),
   };
   private lastArduinoState: ArduinoState | null = null;
   private lastScanTimeSeen: number = -1;
@@ -276,12 +278,15 @@ export class StreamManager {
     // Derive queue:update
     const qUpdate: QueueUpdate = {
       length: s.queueCount,
-      nextTicket: null,
+      nextTicket: s.queue && s.queue.length > 0 ? s.queue[0] : null,
       freeSlots: s.freeSlots,
       inCount: s.inCount,
       maxSlots: s.maxSlots,
     };
     this.emit('queue:update', qUpdate);
+
+    // Emit full state for consumers that need per-UID info
+    this.emit('state:update', s);
 
     // Derive rfid:scan only when new scan observed
     if (s.lastScanTime && s.lastScanTime !== this.lastScanTimeSeen) {

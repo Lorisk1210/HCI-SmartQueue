@@ -28,6 +28,7 @@ void pumpServo();                                          // from 3_servo_contr
 void pumpSseKeepAlive();                                   // from 6_web_server.ino
 void handleClient(WiFiClient &client);                     // from 6_web_server.ino
 void setColor(int r, int g, int b);                        // from 2_led_buzzer.ino
+void pumpQueueReservation();                                // from 1_queue_state.ino
 
 // =====================================================================
 // WIFI ACCESS POINT SETUP
@@ -99,6 +100,9 @@ void loop() {
   
   // Update servo state machine (handle drop/return timing)
   pumpServo();
+
+  // Handle queue reservation timeout (auto-remove #1 if unclaimed for 15 min)
+  pumpQueueReservation();
   
   // Send keep-alive pings to SSE clients
   pumpSseKeepAlive();

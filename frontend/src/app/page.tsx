@@ -7,7 +7,7 @@ import DebugPanel from "./components/DebugPanel";
 import { useSearchParams } from "next/navigation";
 
 export default function Home() {
-  const { freeSlots, queueCount, overlay } = useSmartQueue();
+  const { freeSlots, queueCount, overlay, dismissOverlay } = useSmartQueue();
   const search = useSearchParams();
   const showDebug = search.get("debug") === "1";
   return (
@@ -19,6 +19,7 @@ export default function Home() {
         uid={overlay.visible ? overlay.uid : undefined}
         queuePosition={overlay.visible ? overlay.queuePosition : undefined}
         etaMinutes={overlay.visible ? overlay.etaMinutes : undefined}
+        onDismiss={dismissOverlay}
       />
       {showDebug ? <DebugPanel /> : null}
     </main>

@@ -19,6 +19,68 @@ String lastScanEvent = "";
 String lastScannedCard = "";
 unsigned long lastScanTimestamp = 0;
 
+// Track which cards have already received a dispense via ultrasonic-triggered servo
+// This is kept in memory for the runtime of the device
+String dispensedLog[WAIT_CAPACITY + MAX_SLOTS + 20];
+uint8_t dispensedCount = 0;
+
+bool hasDispensedBefore(const String &id) {
+  for (uint8_t i = 0; i < dispensedCount; i++) {
+    if (dispensedLog[i] == id) return true;
+  }
+  return false;
+}
+
+bool recordDispenseForCard(const String &id) {
+  if (hasDispensedBefore(id)) return false;
+  if (dispensedCount < (WAIT_CAPACITY + MAX_SLOTS + 20)) {
+    dispensedLog[dispensedCount++] = id;
+    return true;
+  }
+  return false;
+}
+
+// ===== Queue Claim Reservation (timeout if not claimed) =====
+// If a slot is free and someone is first in queue, they have CLAIM_TIMEOUT_MS to
+// present their card and enter. Otherwise they are removed from the queue.
+static const unsigned long CLAIM_TIMEOUT_MS = 15UL * 60UL * 1000UL; // 15 minutes
+unsigned long queueClaimStartMillis = 0;
+String queueClaimUid = "";
+
+void pumpQueueReservation() {
+  extern void broadcastState(); // from 6_web_server.ino
+  // Only applicable when there is a waiting queue and at least one free slot
+  if (queueCount == 0 || getFreeSlots() <= 0) {
+    queueClaimStartMillis = 0;
+    queueClaimUid = "";
+    return;
+  }
+
+  // Current first in line
+  String currentUid = waitQueue[0];
+  // Start or reset reservation timer when the head changes
+  if (queueClaimUid != currentUid) {
+    queueClaimUid = currentUid;
+    queueClaimStartMillis = millis();
+    return;
+  }
+
+  // Check timeout
+  unsigned long now = millis();
+  if (queueClaimStartMillis > 0 && (now - queueClaimStartMillis) > CLAIM_TIMEOUT_MS) {
+    // Remove first in queue for not claiming the slot
+    bool removed = removeFromWaitByIndex(0);
+    if (removed) {
+      setStatus("Queue timeout: removed " + currentUid);
+      // Do not setScanEvent since this is not an RFID scan
+      broadcastState();
+    }
+    // Reset reservation for the next person
+    queueClaimStartMillis = 0;
+    queueClaimUid = "";
+  }
+}
+
 // Update the status message that appears on the web dashboard
 void setStatus(const String &msg) {
   lastStatusMsg = msg;

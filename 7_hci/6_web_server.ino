@@ -169,6 +169,9 @@ void handleClient(WiFiClient &client) {
   String requestLine;
   bool gotRequestLine = false;
   bool wantsSse = false;
+  bool wantsApi = false;
+  String apiPath;
+  String apiQuery;
   
   // Read HTTP request line-by-line
   while (client.connected() && millis() < timeout) {
@@ -181,6 +184,20 @@ void handleClient(WiFiClient &client) {
           requestLine = currentLine;
           if (requestLine.startsWith("GET /events")) {
             wantsSse = true;
+          } else if (requestLine.startsWith("GET /api/")) {
+            wantsApi = true;
+            // Parse path and query
+            int sp1 = requestLine.indexOf(' ');
+            int sp2 = requestLine.indexOf(' ', sp1 + 1);
+            String url = requestLine.substring(sp1 + 1, sp2);
+            int qpos = url.indexOf('?');
+            if (qpos >= 0) {
+              apiPath = url.substring(0, qpos);
+              apiQuery = url.substring(qpos + 1);
+            } else {
+              apiPath = url;
+              apiQuery = "";
+            }
           }
         }
         
@@ -189,6 +206,55 @@ void handleClient(WiFiClient &client) {
           if (wantsSse) {
             beginSse(client);
             return; // Keep SSE connection open
+          } else if (wantsApi) {
+            // Handle minimal API endpoints
+            if (apiPath.startsWith("/api/queue/leave")) {
+              // Extract uid parameter
+              String uid;
+              int pos = apiQuery.indexOf("uid=");
+              if (pos >= 0) {
+                String rest = apiQuery.substring(pos + 4);
+                int amp = rest.indexOf('&');
+                uid = (amp >= 0) ? rest.substring(0, amp) : rest;
+              }
+              // URL decode minimal (%3A for ':')
+              uid.replace("%3A", ":");
+              uid.replace("%3a", ":");
+
+              bool ok = false;
+              if (uid.length() > 0) {
+                extern int indexOfWaitQueue(const String &id);
+                extern bool removeFromWaitByIndex(uint8_t idx);
+                int qIdx = indexOfWaitQueue(uid);
+                if (qIdx >= 0) {
+                  ok = removeFromWaitByIndex((uint8_t)qIdx);
+                  if (ok) {
+                    setStatus("Removed from queue via API: " + uid);
+                    broadcastState();
+                  }
+                }
+              }
+
+              // Respond JSON
+              client.println("HTTP/1.1 200 OK");
+              client.println("Content-Type: application/json");
+              client.println("Connection: close");
+              client.println();
+              client.print("{\"ok\":");
+              client.print(ok ? "true" : "false");
+              client.print(",\"uid\":\"");
+              client.print(uid);
+              client.println("\"}");
+              break;
+            } else {
+              // Unknown API path
+              client.println("HTTP/1.1 404 Not Found");
+              client.println("Content-Type: text/plain");
+              client.println("Connection: close");
+              client.println();
+              client.println("Not Found");
+              break;
+            }
           } else {
             sendQueuePage(client);
             break;

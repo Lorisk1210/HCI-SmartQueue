@@ -35,6 +35,13 @@ long measureDistanceCm() {
 // Includes debouncing to prevent excessive rapid triggers
 void maybeTriggerServoFromUltrasonic() {
   unsigned long now = millis();
+  extern unsigned long lastScanTimestamp; // from 1_queue_state.ino
+  extern String lastScannedCard;          // from 1_queue_state.ino
+  
+  // Only allow ultrasonic-triggered dispense within 10 seconds of the last RFID scan
+  if (lastScanTimestamp == 0 || (now - lastScanTimestamp) > 10000UL) {
+    return;
+  }
   
   // Only check sensor periodically to avoid excessive polling
   if (now - lastUltraMillis < ULTRA_INTERVAL_MS) {
@@ -53,6 +60,16 @@ void maybeTriggerServoFromUltrasonic() {
   // Check if someone is in range and enough time has passed since last trigger
   if (cm > 0 && cm < ULTRA_THRESHOLD_CM) {
     if (now - lastStepTriggerMillis > STEP_TRIGGER_COOLDOWN_MS) {
+      // Ensure we have a valid card from the last scan and it has not already received a dispense
+      if (lastScannedCard.length() == 0) {
+        return;
+      }
+      extern bool hasDispensedBefore(const String &id);    // from 1_queue_state.ino
+      extern bool recordDispenseForCard(const String &id); // from 1_queue_state.ino
+      if (hasDispensedBefore(lastScannedCard)) {
+        // Already dispensed for this UID before; block further dispenses
+        return;
+      }
       // Trigger the servo drop
       myServo.write(SERVO_TRIGGER_ANGLE);
       delay(100);
@@ -64,8 +81,9 @@ void maybeTriggerServoFromUltrasonic() {
       servoReturnTime = 0;
       lastStepTriggerMillis = now;
       
-      // Log and notify
-      setStatus("Servo: ball drop triggered by proximity (" + String(cm) + "cm)");
+      // Record dispense against this UID and log
+      recordDispenseForCard(lastScannedCard);
+      setStatus("Dispensed for UID " + lastScannedCard + " (" + String(cm) + "cm)");
       proximityFeedback(); // Pink LED + ascending beeps
     }
   }
