@@ -15,6 +15,7 @@ unsigned long lastSseKeepAlive = 0;
 
 // Build a JSON state object containing current system state
 void buildStateJson(String &out) {
+  extern bool hasDispensedBefore(const String &id);
   out = "{";
   out += "\"freeSlots\":" + String(MAX_SLOTS - inCount);
   out += ",\"inCount\":" + String(inCount);
@@ -24,6 +25,13 @@ void buildStateJson(String &out) {
   out += ",\"lastScanEvent\":\"" + escapeJson(lastScanEvent) + "\"";
   out += ",\"lastScannedCard\":\"" + escapeJson(lastScannedCard) + "\"";
   out += ",\"lastScanTime\":" + String(lastScanTimestamp);
+  
+  bool eligible = false;
+  if (lastScannedCard.length() > 0) {
+    eligible = !hasDispensedBefore(lastScannedCard);
+  }
+  out += ",\"lastCardDispenseEligible\":";
+  out += (eligible ? "true" : "false");
   
   // Add queue position if the last scanned card is currently in queue
   int queuePos = getCardQueuePosition(lastScannedCard);

@@ -8,6 +8,7 @@ export type ArduinoState = {
   lastScannedCard: string;
   lastScanTime: number;
   lastCardQueuePosition: number; // -1 if not queued
+  lastCardDispenseEligible?: boolean;
   in: string[];
   queue: string[];
   t: number;
@@ -32,6 +33,7 @@ export type RfidScan = {
     | 'left'
     | 'queue_full';
   queuePosition?: number; // 1-based when queued
+  dispenseEligible?: boolean;
 };
 
 export type ConnectionState =
@@ -296,6 +298,7 @@ export class StreamManager {
         status: this.mapScanStatusToAccepted(s.lastScanEvent) ? 'accepted' : 'rejected',
         reason: this.mapScanReason(s.lastScanEvent),
         queuePosition: s.lastCardQueuePosition > 0 ? s.lastCardQueuePosition : undefined,
+        dispenseEligible: typeof s.lastCardDispenseEligible === 'boolean' ? s.lastCardDispenseEligible : undefined,
       };
       this.emit('rfid:scan', scan);
     }

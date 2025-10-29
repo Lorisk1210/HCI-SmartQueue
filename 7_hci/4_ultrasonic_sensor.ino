@@ -37,9 +37,15 @@ void maybeTriggerServoFromUltrasonic() {
   unsigned long now = millis();
   extern unsigned long lastScanTimestamp; // from 1_queue_state.ino
   extern String lastScannedCard;          // from 1_queue_state.ino
+  extern String lastScanEvent;            // from 1_queue_state.ino
   
   // Only allow ultrasonic-triggered dispense within 10 seconds of the last RFID scan
   if (lastScanTimestamp == 0 || (now - lastScanTimestamp) > 10000UL) {
+    return;
+  }
+
+  // Only allow dispense when the last scan resulted in entering the library
+  if (!(lastScanEvent == "entered" || lastScanEvent == "entered_from_queue")) {
     return;
   }
   

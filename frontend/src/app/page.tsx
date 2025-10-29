@@ -19,6 +19,7 @@ export default function Home() {
         uid={overlay.visible ? overlay.uid : undefined}
         queuePosition={overlay.visible ? overlay.queuePosition : undefined}
         etaMinutes={overlay.visible ? overlay.etaMinutes : undefined}
+        dispenseAvailable={overlay.visible ? (overlay as any).dispenseAvailable : undefined}
         onDismiss={dismissOverlay}
       />
       {showDebug ? <DebugPanel /> : null}

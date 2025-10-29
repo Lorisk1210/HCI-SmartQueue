@@ -11,6 +11,7 @@ type OverlayState =
       uid: string;
       queuePosition?: number;
       etaMinutes?: number;
+      dispenseAvailable?: boolean;
     };
 
 type SmartQueueState = {
@@ -112,14 +113,15 @@ export function useSmartQueue(): SmartQueueReturn {
           if (scan.reason === "left") {
             next.overlay = { visible: true, kind: "goodbye", uid: scan.uid };
           } else {
-            next.overlay = { visible: true, kind: "welcome", uid: scan.uid };
+            next.overlay = { visible: true, kind: "welcome", uid: scan.uid, dispenseAvailable: !!scan.dispenseEligible };
           }
         } else {
           if (scan.reason === "queue_full") {
             next.overlay = { visible: true, kind: "denied", uid: scan.uid };
           } else {
             const pos = scan.queuePosition ?? 0;
-            const eta = computeEtaMinutes(pos, prev.maxSlots || 3, prev.avgStayMinutes || 60);
+            const etaRaw = computeEtaMinutes(pos, prev.maxSlots || 3, prev.avgStayMinutes || 60);
+            const eta = Math.round(etaRaw);
             next.overlay = {
               visible: true,
               kind: "queued",
