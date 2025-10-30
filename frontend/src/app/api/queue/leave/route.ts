@@ -1,6 +1,6 @@
 export const runtime = 'nodejs';
 
-const DEFAULT_ARDUINO_BASE_URL = 'http://192.168.4.1';
+const DEFAULT_ARDUINO_BASE_URL = 'http://172.20.10.2';
 
 function getArduinoBaseUrl(): string {
   const base = process.env.ARDUINO_BASE_URL || DEFAULT_ARDUINO_BASE_URL;
