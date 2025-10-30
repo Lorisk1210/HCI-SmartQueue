@@ -2,6 +2,8 @@
 
 An IoT queue management system using Arduino for RFID-based entry control and a Next.js web interface for real-time status tracking.
 
+This project was developed as part of the Hands-on HCI course. The hardware terminal enclosure was built using lasercutting and 3D printing.
+
 ## Architecture
 
 - **`7_hci/`** - Arduino firmware (ESP32/Arduino WiFi) handling RFID scanning, queue management, servo control, and WiFi AP
@@ -37,7 +39,7 @@ Create a `.env.local` file in the `frontend/` directory with the following varia
 
 ### Optional Variables
 
-- **`ARDUINO_BASE_URL`** - Base URL for Arduino WiFi AP (defaults to `http://192.168.4.1` if not set)
+- **`ARDUINO_BASE_URL`** - Base URL for Arduino WiFi AP (defaults to `http://172.20.10.2` if not set)
 - **`NEXT_PUBLIC_QR_BASE_URL`** - Base URL for QR code links (defaults to auto-detection if not set)
 
 **Note:** Never commit `.env.local` or any other `.env*` files to version control. They are automatically ignored by `.gitignore`.
