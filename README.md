@@ -6,7 +6,7 @@ This project was developed as part of the Hands-on HCI course. The hardware term
 
 ## Architecture
 
-- **`7_hci/`** - Arduino firmware (ESP32/Arduino WiFi) handling RFID scanning, queue management, servo control, and WiFi AP
+- **`7_hci/`** - Arduino firmware (ESP32/Arduino WiFi) handling RFID scanning, queue management, servo control, and WiFi client connection
 - **`frontend/`** - Next.js web app running on Raspberry Pi, providing kiosk display and mobile ticket pages
 
 ## Features
@@ -21,7 +21,7 @@ This project was developed as part of the Hands-on HCI course. The hardware term
 ## Setup
 
 1. Upload Arduino code from `7_hci/` to your board
-2. Connect Raspberry Pi to Arduino WiFi AP (SmartQueue)
+2. Configure WiFi settings in `7_hci/config.h` and ensure both Arduino and Raspberry Pi are on the same network
 3. Install and run Next.js app in `frontend/` directory
 4. Configure environment variables (see below)
 5. Scan RFID cards at entrance; QR codes appear for queued users
@@ -39,7 +39,7 @@ Create a `.env.local` file in the `frontend/` directory with the following varia
 
 ### Optional Variables
 
-- **`ARDUINO_BASE_URL`** - Base URL for Arduino WiFi AP (defaults to `http://172.20.10.2` if not set)
+- **`ARDUINO_BASE_URL`** - Base URL for Arduino web server (defaults to `http://172.20.10.2` if not set)
 - **`NEXT_PUBLIC_QR_BASE_URL`** - Base URL for QR code links (defaults to auto-detection if not set)
 
 **Note:** Never commit `.env.local` or any other `.env*` files to version control. They are automatically ignored by `.gitignore`.
