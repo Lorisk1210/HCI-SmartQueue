@@ -1,11 +1,6 @@
 export const runtime = 'nodejs';
 
-const DEFAULT_ARDUINO_BASE_URL = 'http://172.20.10.2';
-
-function getArduinoBaseUrl(): string {
-  const base = process.env.ARDUINO_BASE_URL || DEFAULT_ARDUINO_BASE_URL;
-  return base.replace(/\/$/, '');
-}
+import { getArduinoBaseUrl } from '@/app/lib/arduino-discovery';
 
 export async function POST(req: Request) {
   let uid: string | undefined;
@@ -22,13 +17,25 @@ export async function POST(req: Request) {
     });
   }
 
-  const base = getArduinoBaseUrl();
+  const base = await getArduinoBaseUrl();
   const url = `${base}/api/queue/leave?uid=${encodeURIComponent(uid)}`;
   let upstream: Response;
   try {
-    upstream = await fetch(url, { method: 'GET', cache: 'no-store' });
-  } catch (err) {
-    return new Response(JSON.stringify({ ok: false, error: 'arduino unreachable' }), {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    upstream = await fetch(url, { 
+      method: 'GET', 
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+  } catch (err: any) {
+    console.error('[queue/leave] Failed to reach Arduino:', err?.message || err);
+    return new Response(JSON.stringify({ 
+      ok: false, 
+      error: 'arduino unreachable',
+      details: err?.message || 'Connection error'
+    }), {
       status: 502,
       headers: { 'Content-Type': 'application/json' },
     });

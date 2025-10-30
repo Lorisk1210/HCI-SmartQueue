@@ -12,9 +12,11 @@ function pickLanIp(): string | null {
       }
     }
   }
-  // Prefer Arduino AP ranges first
-  const preferred = candidates.find(ip => ip.startsWith('192.168.4.'))
-    || candidates.find(ip => ip.startsWith('192.168.'))
+  // Prefer iPhone hotspot range first (172.20.10.x), then other common ranges
+  const preferred = candidates.find(ip => ip.startsWith('172.20.10.'))
+    || candidates.find(ip => ip.startsWith('192.168.4.'))  // Arduino AP
+    || candidates.find(ip => ip.startsWith('192.168.'))    // Common router range
+    || candidates.find(ip => ip.startsWith('10.'))          // Another common range
     || candidates[0];
   return preferred || null;
 }

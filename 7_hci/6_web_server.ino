@@ -168,6 +168,9 @@ void beginSse(WiFiClient &client) {
   client.println("Content-Type: text/event-stream");
   client.println("Cache-Control: no-cache");
   client.println("Connection: keep-alive");
+  client.println("Access-Control-Allow-Origin: *");
+  client.println("Access-Control-Allow-Methods: GET, OPTIONS");
+  client.println("Access-Control-Allow-Headers: Content-Type, Last-Event-ID");
   client.println();
   addSseClient(client); // Register this client for updates
 }
@@ -180,6 +183,7 @@ void handleClient(WiFiClient &client) {
   bool gotRequestLine = false;
   bool wantsSse = false;
   bool wantsApi = false;
+  bool wantsOptions = false;
   String apiPath;
   String apiQuery;
   
@@ -192,7 +196,9 @@ void handleClient(WiFiClient &client) {
         if (!gotRequestLine) {
           gotRequestLine = true;
           requestLine = currentLine;
-          if (requestLine.startsWith("GET /events")) {
+          if (requestLine.startsWith("OPTIONS ")) {
+            wantsOptions = true;
+          } else if (requestLine.startsWith("GET /events")) {
             wantsSse = true;
           } else if (requestLine.startsWith("GET /api/")) {
             wantsApi = true;
@@ -213,7 +219,17 @@ void handleClient(WiFiClient &client) {
         
         // Empty line signals end of HTTP headers
         if (currentLine.length() == 0) {
-          if (wantsSse) {
+          if (wantsOptions) {
+            // Handle CORS preflight
+            client.println("HTTP/1.1 204 No Content");
+            client.println("Access-Control-Allow-Origin: *");
+            client.println("Access-Control-Allow-Methods: GET, POST, OPTIONS");
+            client.println("Access-Control-Allow-Headers: Content-Type, Last-Event-ID");
+            client.println("Access-Control-Max-Age: 86400");
+            client.println("Connection: close");
+            client.println();
+            break;
+          } else if (wantsSse) {
             beginSse(client);
             return; // Keep SSE connection open
           } else if (wantsApi) {
@@ -250,6 +266,7 @@ void handleClient(WiFiClient &client) {
               // Respond JSON
               client.println("HTTP/1.1 200 OK");
               client.println("Content-Type: application/json");
+              client.println("Access-Control-Allow-Origin: *");
               client.println("Connection: close");
               client.println();
               client.print("{\"ok\":");
@@ -284,6 +301,7 @@ void handleClient(WiFiClient &client) {
               // Respond JSON
               client.println("HTTP/1.1 200 OK");
               client.println("Content-Type: application/json");
+              client.println("Access-Control-Allow-Origin: *");
               client.println("Connection: close");
               client.println();
               client.print("{\"ok\":");
@@ -292,10 +310,24 @@ void handleClient(WiFiClient &client) {
               client.print(uid);
               client.println("\"}");
               break;
+            } else if (apiPath.startsWith("/api/health") || apiPath.startsWith("/api/status")) {
+              // Health check endpoint
+              client.println("HTTP/1.1 200 OK");
+              client.println("Content-Type: application/json");
+              client.println("Access-Control-Allow-Origin: *");
+              client.println("Connection: close");
+              client.println();
+              client.print("{\"ok\":true,\"ip\":\"");
+              client.print(ipToString(WiFi.localIP()));
+              client.print("\",\"ssid\":\"");
+              client.print(WiFi.SSID());
+              client.println("\"}");
+              break;
             } else {
               // Unknown API path
               client.println("HTTP/1.1 404 Not Found");
               client.println("Content-Type: text/plain");
+              client.println("Access-Control-Allow-Origin: *");
               client.println("Connection: close");
               client.println();
               client.println("Not Found");
