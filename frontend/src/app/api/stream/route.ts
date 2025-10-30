@@ -22,42 +22,58 @@ export async function GET(request: Request) {
   let upstream: Response;
   let timeoutId: NodeJS.Timeout | undefined;
   let abortHandler: (() => void) | undefined;
-  
-  try {
-    console.log(`[stream] Connecting to Arduino at ${upstreamUrl}`);
-    
-    // Create a timeout controller - give it 15 seconds to establish connection
-    const timeoutController = new AbortController();
-    timeoutId = setTimeout(() => {
-      console.log(`[stream] Connection timeout after 15s`);
-      timeoutController.abort();
-      controller.abort();
-    }, 15000);
-    
-    // Listen to both signals
-    abortHandler = () => timeoutController.abort();
-    controller.signal.addEventListener('abort', abortHandler);
-    
-    upstream = await fetch(upstreamUrl, {
-      method: 'GET',
-      headers: {
-        'Accept': 'text/event-stream',
-        ...(clientLastEventId ? { 'Last-Event-ID': clientLastEventId } : {}),
-      },
-      signal: timeoutController.signal,
-      // Do not cache SSE
-      cache: 'no-store',
-    });
-    
-    if (timeoutId) clearTimeout(timeoutId);
-    if (abortHandler) controller.signal.removeEventListener('abort', abortHandler);
-    console.log(`[stream] Arduino responded with status ${upstream.status}, body: ${upstream.body ? 'present' : 'missing'}`);
-  } catch (err: any) {
-    if (timeoutId) clearTimeout(timeoutId);
-    if (abortHandler) controller.signal.removeEventListener('abort', abortHandler);
-    console.error(`[stream] Failed to reach Arduino at ${upstreamUrl}:`, err?.message || err);
+
+  const CONNECT_TIMEOUT_MS = Number(process.env.STREAM_CONNECT_TIMEOUT_MS || '') || 30000;
+  const MAX_CONNECT_ATTEMPTS = Math.max(1, Number(process.env.STREAM_CONNECT_ATTEMPTS || '') || 3);
+  const CONNECT_RETRY_DELAY_MS = Math.max(0, Number(process.env.STREAM_CONNECT_RETRY_DELAY_MS || '') || 600);
+
+  let lastError: unknown = undefined;
+  for (let attempt = 1; attempt <= MAX_CONNECT_ATTEMPTS; attempt++) {
+    try {
+      console.log(`[stream] Connecting to Arduino at ${upstreamUrl} (attempt ${attempt}/${MAX_CONNECT_ATTEMPTS})`);
+
+      const timeoutController = new AbortController();
+      timeoutId = setTimeout(() => {
+        console.log(`[stream] Connection timeout after ${CONNECT_TIMEOUT_MS}ms (attempt ${attempt})`);
+        timeoutController.abort();
+        controller.abort();
+      }, CONNECT_TIMEOUT_MS);
+
+      abortHandler = () => timeoutController.abort();
+      controller.signal.addEventListener('abort', abortHandler);
+
+      upstream = await fetch(upstreamUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'text/event-stream',
+          ...(clientLastEventId ? { 'Last-Event-ID': clientLastEventId } : {}),
+        },
+        signal: timeoutController.signal,
+        cache: 'no-store',
+      });
+
+      if (timeoutId) clearTimeout(timeoutId);
+      if (abortHandler) controller.signal.removeEventListener('abort', abortHandler);
+      console.log(`[stream] Arduino responded with status ${upstream.status}, body: ${upstream.body ? 'present' : 'missing'}`);
+      if (upstream.ok && upstream.body) {
+        break;
+      }
+      lastError = new Error(`Upstream responded ${upstream.status}`);
+    } catch (err: any) {
+      if (timeoutId) clearTimeout(timeoutId);
+      if (abortHandler) controller.signal.removeEventListener('abort', abortHandler);
+      lastError = err;
+      console.error(`[stream] Failed to reach Arduino at ${upstreamUrl} (attempt ${attempt}):`, err?.message || err);
+    }
+
+    if (attempt < MAX_CONNECT_ATTEMPTS) {
+      await new Promise((r) => setTimeout(r, CONNECT_RETRY_DELAY_MS));
+    }
+  }
+
+  if (!upstream) {
     request.signal.removeEventListener('abort', abortUpstream);
-    const errorMsg = `Cannot reach Arduino at ${arduinoBase}. Error: ${err?.message || 'Connection error'}. Make sure Arduino is powered on and connected to the same WiFi network.`;
+    const errorMsg = `Cannot reach Arduino at ${arduinoBase}. Error: ${(lastError as any)?.message || 'Connection error'}.`;
     return new Response(errorMsg, { status: 502 });
   }
 
