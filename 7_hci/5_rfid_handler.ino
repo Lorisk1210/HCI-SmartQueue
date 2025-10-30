@@ -37,6 +37,13 @@ void handleRFID() {
     
     // If there are enough free slots for them to enter now
     if (qIdx < slotsNow) {
+      // If they're first in queue, they can enter directly without confirmation
+      // Clear any pending confirmation state (they don't need it - they're entering now)
+      if (qIdx == 0) {
+        extern void clearEntryConfirmation(const String &id);
+        clearEntryConfirmation(id);
+      }
+      
       removeFromWaitByIndex(qIdx);
       addToLibrary(id);
       setStatus("Entered from queue: " + id + " (" + String(inCount) + "/" + String(MAX_SLOTS) + ")");

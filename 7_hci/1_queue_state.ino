@@ -43,9 +43,12 @@ bool recordDispenseForCard(const String &id) {
 // ===== Queue Claim Reservation (timeout if not claimed) =====
 // If a slot is free and someone is first in queue, they have CLAIM_TIMEOUT_MS to
 // present their card and enter. Otherwise they are removed from the queue.
+// Note: If they scan their card directly, they enter immediately (no confirmation needed).
+// If they don't scan, they must confirm via web/WhatsApp within 5 minutes, then have 15 minutes to scan.
 static const unsigned long CLAIM_TIMEOUT_MS = 15UL * 60UL * 1000UL; // 15 minutes
 unsigned long queueClaimStartMillis = 0;
 String queueClaimUid = "";
+bool queueClaimConfirmed = false; // True after user confirms entry intention OR scans directly
 
 void pumpQueueReservation() {
   extern void broadcastState(); // from 6_web_server.ino
@@ -53,6 +56,7 @@ void pumpQueueReservation() {
   if (queueCount == 0 || getFreeSlots() <= 0) {
     queueClaimStartMillis = 0;
     queueClaimUid = "";
+    queueClaimConfirmed = false;
     return;
   }
 
@@ -61,8 +65,14 @@ void pumpQueueReservation() {
   // Start or reset reservation timer when the head changes
   if (queueClaimUid != currentUid) {
     queueClaimUid = currentUid;
-    queueClaimStartMillis = millis();
+    queueClaimStartMillis = 0; // Don't start timer yet - wait for confirmation OR direct scan
+    queueClaimConfirmed = false;
     return;
+  }
+
+  // Only enforce timeout if timer was started (after confirmation OR direct scan)
+  if (!queueClaimConfirmed || queueClaimStartMillis == 0) {
+    return; // Wait for entry confirmation or direct RFID scan before starting timer
   }
 
   // Check timeout
@@ -78,6 +88,43 @@ void pumpQueueReservation() {
     // Reset reservation for the next person
     queueClaimStartMillis = 0;
     queueClaimUid = "";
+    queueClaimConfirmed = false;
+  }
+}
+
+// Reset/start the queue claim timer for the current first person
+// Called after user confirms entry intention (via API)
+bool resetQueueClaimTimer(const String &uid) {
+  extern void broadcastState(); // from 6_web_server.ino
+  // Only reset if this is the current first person
+  if (queueCount == 0) {
+    return false; // No queue
+  }
+  
+  // Check if this UID is actually first
+  if (waitQueue[0] != uid) {
+    return false; // Not first in queue
+  }
+  
+  // Only start timer if there's a free slot
+  if (getFreeSlots() <= 0) {
+    return false; // No free slots
+  }
+  
+  // Start/reset the timer - this starts the 15-minute countdown
+  queueClaimStartMillis = millis();
+  queueClaimConfirmed = true;
+  queueClaimUid = uid; // Ensure it's set
+  
+  return true;
+}
+
+// Clear entry confirmation state (for leave/reset)
+void clearEntryConfirmation(const String &id) {
+  if (queueClaimUid == id) {
+    queueClaimStartMillis = 0;
+    queueClaimUid = "";
+    queueClaimConfirmed = false;
   }
 }
 

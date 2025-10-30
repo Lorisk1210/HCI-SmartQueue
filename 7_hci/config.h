@@ -47,11 +47,19 @@ const uint8_t MAX_SLOTS = 3;           // Maximum simultaneous people in library
 const uint8_t WAIT_CAPACITY = 10;      // Maximum people in waiting queue
 
 // =====================================================================
-// WiFi Access Point Configuration
+// WiFi Station (Client) Configuration
 // =====================================================================
-// These can be changed if desired, but must be >= 8 characters for password
-char apSsid[] = "SmartQueue";
-char apPass[] = "password123";
+// Replace the placeholders below with the SSID and password of the WiFi
+// network that provides internet access (e.g. phone hotspot or campus WiFi).
+// Keep the strings short and ASCII-only to avoid flash memory issues.
+const char WIFI_SSID[] = "iPhone von Loris";
+const char WIFI_PASS[] = "mypassword";
+
+// How long to wait for each connection attempt before retrying (milliseconds)
+const unsigned long WIFI_CONNECT_TIMEOUT_MS = 20000UL; // 20 seconds
+const unsigned long WIFI_RETRY_DELAY_MS = 3000UL;      // 3 seconds between attempts
+const unsigned long WIFI_HEALTH_CHECK_MS = 10000UL;    // Check connection every 10s
+
 const uint16_t WEB_SERVER_PORT = 80;
 
 // =====================================================================

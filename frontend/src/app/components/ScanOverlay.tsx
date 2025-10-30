@@ -121,7 +121,7 @@ export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinu
               <button
                 onClick={handleLeaveQueue}
                 disabled={leaving}
-                className="mt-3 rounded-md border border-black/20 px-4 py-3 text-base"
+                className="mt-3 rounded-md border border-black/20 px-4 py-3 text-base hover:bg-black/5"
               >
                 {leaving ? 'Leaving…' : 'Leave queue'}
               </button>

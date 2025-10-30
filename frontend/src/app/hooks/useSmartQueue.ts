@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { QueueUpdate, RfidScan, StreamManager } from "../lib/sse/StreamManager";
+import { handleRfidScan, handleQueueUpdate } from "../lib/notify/whatsapp";
 
 type OverlayState =
   | { visible: false }
@@ -70,6 +71,9 @@ export function useSmartQueue(): SmartQueueReturn {
 
   useEffect(() => {
     const offQueue = manager.on("queue:update", (q: QueueUpdate) => {
+      // Handle WhatsApp notifications
+      handleQueueUpdate(q);
+      
       setState((prev) => ({
         ...prev,
         freeSlots: q.freeSlots,
@@ -88,6 +92,16 @@ export function useSmartQueue(): SmartQueueReturn {
     (useSmartQueue as any)._durationsRef = durationsRef;
 
     const offScan = manager.on("rfid:scan", (scan: RfidScan) => {
+      // Handle WhatsApp notifications
+      handleRfidScan(scan);
+      
+      // If someone enters from queue via RFID scan, clear their entry confirmation
+      // (they entered directly, no need for web/WhatsApp confirmation)
+      if (scan.status === "accepted" && scan.reason === "entered_from_queue") {
+        const { clearEntryConfirmation } = require("@/app/lib/entry-confirmation");
+        clearEntryConfirmation(scan.uid);
+      }
+      
       let updatedAvg: number | null = null;
       const nowTs = Date.now();
       if (scan.status === "accepted" && (scan.reason === "entered" || scan.reason === "entered_from_queue")) {

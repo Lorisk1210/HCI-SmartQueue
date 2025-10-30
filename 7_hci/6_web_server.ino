@@ -125,7 +125,9 @@ void sendQueuePage(WiFiClient &client) {
                  "tfoot{font-size:0.9rem;color:#555}code{font-size:1rem}.muted{color:#555;font-size:0.95rem}</style>");
   client.println("</head><body>");
   client.println("<h1>SmartQueue</h1>");
-  client.println("<p>Access Point: <code>" + String(apSsid) + "</code> | Device IP: <code>" + ipToString(WiFi.localIP()) + "</code></p>");
+  String currentSsid = WiFi.SSID();
+  if (currentSsid.length() == 0) currentSsid = "(unknown)";
+  client.println("<p>Network: <code>" + currentSsid + "</code> | Device IP: <code>" + ipToString(WiFi.localIP()) + "</code></p>");
   
   client.println("<p id=\"status\" class=\"muted\">Idle</p>");
   
@@ -233,6 +235,8 @@ void handleClient(WiFiClient &client) {
               if (uid.length() > 0) {
                 extern int indexOfWaitQueue(const String &id);
                 extern bool removeFromWaitByIndex(uint8_t idx);
+                extern void clearEntryConfirmation(const String &id);
+                clearEntryConfirmation(uid); // Clear confirmation state
                 int qIdx = indexOfWaitQueue(uid);
                 if (qIdx >= 0) {
                   ok = removeFromWaitByIndex((uint8_t)qIdx);
@@ -240,6 +244,40 @@ void handleClient(WiFiClient &client) {
                     setStatus("Removed from queue via API: " + uid);
                     broadcastState();
                   }
+                }
+              }
+
+              // Respond JSON
+              client.println("HTTP/1.1 200 OK");
+              client.println("Content-Type: application/json");
+              client.println("Connection: close");
+              client.println();
+              client.print("{\"ok\":");
+              client.print(ok ? "true" : "false");
+              client.print(",\"uid\":\"");
+              client.print(uid);
+              client.println("\"}");
+              break;
+            } else if (apiPath.startsWith("/api/queue/confirm-entry")) {
+              // Extract uid parameter
+              String uid;
+              int pos = apiQuery.indexOf("uid=");
+              if (pos >= 0) {
+                String rest = apiQuery.substring(pos + 4);
+                int amp = rest.indexOf('&');
+                uid = (amp >= 0) ? rest.substring(0, amp) : rest;
+              }
+              // URL decode minimal (%3A for ':')
+              uid.replace("%3A", ":");
+              uid.replace("%3a", ":");
+
+              bool ok = false;
+              if (uid.length() > 0) {
+                extern bool resetQueueClaimTimer(const String &id);
+                ok = resetQueueClaimTimer(uid);
+                if (ok) {
+                  setStatus("Entry confirmed: " + uid + " - 15min timer started");
+                  broadcastState();
                 }
               }
 

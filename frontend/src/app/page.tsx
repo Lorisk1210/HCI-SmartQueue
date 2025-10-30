@@ -13,15 +13,17 @@ export default function Home() {
   return (
     <main>
       <Stats peopleInLibrary={freeSlots} peopleInQueue={queueCount} />
-      <ScanOverlay
-        visible={overlay.visible}
-        kind={overlay.visible ? overlay.kind : undefined}
-        uid={overlay.visible ? overlay.uid : undefined}
-        queuePosition={overlay.visible ? overlay.queuePosition : undefined}
-        etaMinutes={overlay.visible ? overlay.etaMinutes : undefined}
-        dispenseAvailable={overlay.visible ? (overlay as any).dispenseAvailable : undefined}
-        onDismiss={dismissOverlay}
-      />
+      {overlay.visible ? (
+        <ScanOverlay
+          visible={overlay.visible}
+          kind={overlay.kind}
+          uid={overlay.uid}
+          queuePosition={overlay.queuePosition}
+          etaMinutes={overlay.etaMinutes}
+          dispenseAvailable={(overlay as any).dispenseAvailable}
+          onDismiss={dismissOverlay}
+        />
+      ) : null}
       {showDebug ? <DebugPanel /> : null}
     </main>
   );
