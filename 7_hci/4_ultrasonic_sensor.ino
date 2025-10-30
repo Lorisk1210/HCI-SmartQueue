@@ -39,6 +39,12 @@ void maybeTriggerServoFromUltrasonic() {
   extern String lastScannedCard;          // from 1_queue_state.ino
   extern String lastScanEvent;            // from 1_queue_state.ino
   
+  // Only check sensor periodically to avoid excessive polling
+  if (now - lastUltraMillis < ULTRA_INTERVAL_MS) {
+    return;
+  }
+  lastUltraMillis = now;
+  
   // Only allow ultrasonic-triggered dispense within 10 seconds of the last RFID scan
   if (lastScanTimestamp == 0 || (now - lastScanTimestamp) > 10000UL) {
     return;
@@ -49,12 +55,6 @@ void maybeTriggerServoFromUltrasonic() {
     return;
   }
   
-  // Only check sensor periodically to avoid excessive polling
-  if (now - lastUltraMillis < ULTRA_INTERVAL_MS) {
-    return;
-  }
-  lastUltraMillis = now;
-  
   // Don't trigger servo while it's already moving
   if (servoMoving) {
     return;
@@ -63,9 +63,26 @@ void maybeTriggerServoFromUltrasonic() {
   // Measure current distance
   long cm = measureDistanceCm();
   
+  // Output if something is detected OR if sensor isn't responding (hardware issue)
+  if (cm == -1) {
+    // Sensor timeout - possible hardware connection issue
+    static unsigned long lastTimeoutReport = 0;
+    if (now - lastTimeoutReport > 5000) { // Report timeout every 5 seconds max
+      Serial.println("[ULTRA] ERROR: No echo received (check TRIG/ECHO connections)");
+      lastTimeoutReport = now;
+    }
+  } else if (cm > 0 && cm < ULTRA_THRESHOLD_CM) {
+    Serial.print("[ULTRA] Object detected: ");
+    Serial.print(cm);
+    Serial.print(" cm (threshold: ");
+    Serial.print(ULTRA_THRESHOLD_CM);
+    Serial.println(" cm)");
+  }
+  
   // Check if someone is in range and enough time has passed since last trigger
   if (cm > 0 && cm < ULTRA_THRESHOLD_CM) {
-    if (now - lastStepTriggerMillis > STEP_TRIGGER_COOLDOWN_MS) {
+    unsigned long timeSinceLastTrigger = now - lastStepTriggerMillis;
+    if (timeSinceLastTrigger > STEP_TRIGGER_COOLDOWN_MS) {
       // Ensure we have a valid card from the last scan and it has not already received a dispense
       if (lastScannedCard.length() == 0) {
         return;
@@ -76,12 +93,16 @@ void maybeTriggerServoFromUltrasonic() {
         // Already dispensed for this UID before; block further dispenses
         return;
       }
-      // Trigger the servo drop
-      myServo.write(SERVO_TRIGGER_ANGLE);
-      delay(100);
-      myServo.write(SERVO_HOME_ANGLE);
       
-      // Update servo state machine
+      // Trigger the servo drop via state machine
+      Serial.print("[ULTRA] *** TRIGGERING BALL DROP *** (");
+      Serial.print(cm);
+      Serial.print("cm, card: ");
+      Serial.print(lastScannedCard);
+      Serial.println(")");
+      
+      // Let the state machine handle servo movement timing
+      myServo.write(SERVO_TRIGGER_ANGLE);
       servoMoving = true;
       servoStartTime = now;
       servoReturnTime = 0;
