@@ -50,9 +50,11 @@ type SmartQueueState = {
 // =====================================================================
 // Hook Return Type
 // =====================================================================
-// The hook returns all state plus a function to dismiss the overlay
+// The hook returns all state plus helper functions to manage the overlay
 type SmartQueueReturn = SmartQueueState & {
   dismissOverlay: () => void;
+  holdOverlay: () => void;
+  releaseOverlay: (delayMs?: number) => void;
 };
 
 // =====================================================================
@@ -94,6 +96,23 @@ export function useSmartQueue(): SmartQueueReturn {
   // Reference to the timer that automatically dismisses the overlay after
   // 10 seconds. Stored in a ref to persist across re-renders.
   const overlayTimer = useRef<number | null>(null);
+  const overlayLocked = useRef(false);
+
+  function clearOverlayTimer() {
+    if (overlayTimer.current) {
+      window.clearTimeout(overlayTimer.current);
+      overlayTimer.current = null;
+    }
+  }
+
+  function scheduleOverlayHide(delayMs = 10000) {
+    clearOverlayTimer();
+    overlayTimer.current = window.setTimeout(() => {
+      setState((prev) => ({ ...prev, overlay: { visible: false } }));
+      overlayLocked.current = false;
+      overlayTimer.current = null;
+    }, delayMs);
+  }
 
   // =====================================================================
   // Dismiss Overlay Function
@@ -101,11 +120,19 @@ export function useSmartQueue(): SmartQueueReturn {
   // Manually dismiss the overlay and clear any pending auto-dismiss timer.
   // Called when user clicks/taps the overlay or when explicitly requested.
   const dismissOverlay = () => {
-    if (overlayTimer.current) {
-      window.clearTimeout(overlayTimer.current);
-      overlayTimer.current = null;
-    }
+    overlayLocked.current = false;
+    clearOverlayTimer();
     setState((prev) => ({ ...prev, overlay: { visible: false } }));
+  };
+
+  const holdOverlay = () => {
+    overlayLocked.current = true;
+    clearOverlayTimer();
+  };
+
+  const releaseOverlay = (delayMs = 10000) => {
+    overlayLocked.current = false;
+    scheduleOverlayHide(delayMs);
   };
 
   // =====================================================================
@@ -134,6 +161,7 @@ export function useSmartQueue(): SmartQueueReturn {
       // Handle WhatsApp notifications
       handleQueueUpdate(q);
       
+      overlayLocked.current = false;
       setState((prev) => ({
         ...prev,
         freeSlots: q.freeSlots,
@@ -225,10 +253,9 @@ export function useSmartQueue(): SmartQueueReturn {
         return next;
       });
       // Reset overlay auto-hide timer
-      if (overlayTimer.current) window.clearTimeout(overlayTimer.current);
-      overlayTimer.current = window.setTimeout(() => {
-        setState((prev) => ({ ...prev, overlay: { visible: false } }));
-      }, 10000);
+      if (!overlayLocked.current) {
+        scheduleOverlayHide(10000);
+      }
     });
 
     // =====================================================================
@@ -248,7 +275,7 @@ export function useSmartQueue(): SmartQueueReturn {
       offQueue();
       offScan();
       offHeartbeat();
-      if (overlayTimer.current) window.clearTimeout(overlayTimer.current);
+      clearOverlayTimer();
     };
   }, []);
 
@@ -257,7 +284,7 @@ export function useSmartQueue(): SmartQueueReturn {
   // =====================================================================
   // Return all state and the dismiss overlay function for components to use.
   // Note: Browser push notifications are not used - QR codes provide the notification mechanism.
-  return { ...state, dismissOverlay };
+  return { ...state, dismissOverlay, holdOverlay, releaseOverlay };
 }
 
 // =====================================================================

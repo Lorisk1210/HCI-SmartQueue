@@ -20,7 +20,7 @@ export default function Home() {
   // The useSmartQueue hook provides real-time queue information and manages
   // the overlay that appears when someone scans their RFID card. It maintains
   // an SSE connection to the Arduino to receive live updates.
-  const { freeSlots, queueCount, overlay, dismissOverlay } = useSmartQueue();
+  const { freeSlots, queueCount, overlay, dismissOverlay, holdOverlay, releaseOverlay } = useSmartQueue();
   
   // =====================================================================
   // Debug Mode Toggle
@@ -54,7 +54,10 @@ export default function Home() {
           queuePosition={overlay.queuePosition}
           etaMinutes={overlay.etaMinutes}
           dispenseAvailable={(overlay as any).dispenseAvailable}
+          queueCount={queueCount}
           onDismiss={dismissOverlay}
+          onHold={holdOverlay}
+          onRelease={releaseOverlay}
         />
       ) : null}
       

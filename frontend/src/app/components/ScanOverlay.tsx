@@ -10,6 +10,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import Qr from "./Qr";
+import GambleBlackjack, { GambleSummary } from "./GambleBlackjack";
 
 type Props = {
   // Whether the overlay should be visible
@@ -27,9 +28,15 @@ type Props = {
   onDismiss?: () => void;
   // Whether earplugs are available for dispense (shown for welcome messages)
   dispenseAvailable?: boolean;
+  // Total number of people in queue (for gamble eligibility)
+  queueCount?: number;
+  // Lock overlay visibility while gamble is active
+  onHold?: () => void;
+  // Release overlay lock after gamble concludes
+  onRelease?: (delayMs?: number) => void;
 };
 
-export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinutes, onDismiss, dispenseAvailable }: Props) {
+export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinutes, onDismiss, dispenseAvailable, queueCount, onHold, onRelease }: Props) {
   if (!visible) return null;
 
   // =====================================================================
@@ -57,13 +64,30 @@ export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinu
   // Overlay Interaction
   // =====================================================================
   // Allow user to dismiss overlay by clicking/tapping anywhere on it
-  const handleClick = () => {
-    if (onDismiss) {
-      onDismiss();
-    }
-  };
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [gambleOpen, setGambleOpen] = useState(false);
+  const [gambleSummary, setGambleSummary] = useState<GambleSummary | null>(null);
+
+  const handleBackgroundClick = () => {
+    if (gambleOpen) return;
+    onDismiss?.();
+  };
+
+  useEffect(() => {
+    // Reset gamble state when overlay swaps to a different UID
+    setGambleOpen(false);
+    setGambleSummary(null);
+    onRelease?.();
+  }, [uid, onRelease]);
+
+  useEffect(() => {
+    return () => {
+      if (gambleOpen) {
+        onRelease?.();
+      }
+    };
+  }, [gambleOpen, onRelease]);
 
   // =====================================================================
   // QR Code Base URL Detection
@@ -137,13 +161,49 @@ export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinu
     }
   }
 
+  const eligibleForGamble = kind === "queued" && !!uid && typeof queuePosition === "number" && queuePosition > 1 && typeof queueCount === "number" && queueCount > queuePosition;
+
+  function handleStartGamble(e: React.MouseEvent<HTMLButtonElement>) {
+    e.stopPropagation();
+    if (!eligibleForGamble) return;
+    setGambleSummary(null);
+    setGambleOpen(true);
+    onHold?.();
+  }
+
+  function handleCloseGamble(options?: { cancelled?: boolean }) {
+    setGambleOpen(false);
+    if (!options?.cancelled) {
+      onRelease?.(6000);
+    } else {
+      onRelease?.();
+    }
+  }
+
+  function handleGambleFinished(summary: GambleSummary) {
+    setGambleSummary(summary);
+  }
+
+  const summaryCopy = useMemo(() => {
+    if (!gambleSummary) return null;
+    if (gambleSummary.result === "push") return "Blackjack push – queue stays the same.";
+    if (!gambleSummary.movement?.direction) return "Result recorded. Queue unchanged.";
+    if (!gambleSummary.movement.applied) return "Result recorded, but queue could not update.";
+    if (gambleSummary.movement.direction === "up") return "You moved up by one slot.";
+    return "You dropped one slot.";
+  }, [gambleSummary]);
+
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center bg-white/95 backdrop-blur"
-      onClick={handleClick}
-      onTouchEnd={handleClick}
+      onClick={handleBackgroundClick}
+      onTouchEnd={handleBackgroundClick}
     >
-      <div className="w-full h-full flex flex-col items-center justify-center text-center p-10">
+      <div
+        className="w-full h-full flex flex-col items-center justify-center text-center p-10"
+        onClick={(evt) => evt.stopPropagation()}
+        onTouchEnd={(evt) => evt.stopPropagation()}
+      >
         <h2 className="uppercase tracking-[0.2em] text-[15px] text-neutral-700">RFID Scan</h2>
         <div className="mt-6">
           <p className="font-serif leading-none text-black/90 text-[clamp(48px,10vw,96px)]">{title}</p>
@@ -161,6 +221,19 @@ export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinu
               <div className="text-sm text-neutral-600 w-[min(90vw,420px)]">
                 Scan this QR code on your phone to track your position live.
               </div>
+              {summaryCopy ? (
+                <div className="mt-2 rounded-full border border-neutral-300/70 bg-white/80 px-4 py-2 text-xs text-neutral-600">
+                  {summaryCopy}
+                </div>
+              ) : null}
+              {eligibleForGamble && !gambleOpen ? (
+                <button
+                  onClick={handleStartGamble}
+                  className="mt-2 rounded-full border border-neutral-400/60 px-4 py-2 text-xs uppercase tracking-[0.3em] text-neutral-500 transition hover:bg-neutral-100"
+                >
+                  Gamble Slot
+                </button>
+              ) : null}
               <button
                 onClick={handleLeaveQueue}
                 disabled={leaving}
@@ -173,6 +246,11 @@ export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinu
             </div>
           ) : null}
         </div>
+        {gambleOpen && uid ? (
+          <div className="mt-10 w-full flex justify-center" onClick={(evt) => evt.stopPropagation()} onTouchEnd={(evt) => evt.stopPropagation()}>
+            <GambleBlackjack uid={uid} onClose={handleCloseGamble} onFinished={handleGambleFinished} />
+          </div>
+        ) : null}
       </div>
     </div>
   );
