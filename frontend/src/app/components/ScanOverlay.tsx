@@ -201,8 +201,6 @@ export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinu
     >
       <div
         className="w-full h-full flex flex-col items-center justify-center text-center p-10"
-        onClick={(evt) => evt.stopPropagation()}
-        onTouchEnd={(evt) => evt.stopPropagation()}
       >
         <h2 className="uppercase tracking-[0.2em] text-[15px] text-neutral-700">RFID Scan</h2>
         <div className="mt-6">
@@ -229,13 +227,18 @@ export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinu
               {eligibleForGamble && !gambleOpen ? (
                 <button
                   onClick={handleStartGamble}
+                  onTouchEnd={(event) => event.stopPropagation()}
                   className="mt-2 rounded-full border border-neutral-400/60 px-4 py-2 text-xs uppercase tracking-[0.3em] text-neutral-500 transition hover:bg-neutral-100"
                 >
                   Gamble Slot
                 </button>
               ) : null}
               <button
-                onClick={handleLeaveQueue}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handleLeaveQueue();
+                }}
+                onTouchEnd={(event) => event.stopPropagation()}
                 disabled={leaving}
                 className="mt-3 rounded-md border border-black/20 px-4 py-3 text-base hover:bg-black/5"
               >

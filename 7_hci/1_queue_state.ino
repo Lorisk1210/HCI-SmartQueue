@@ -195,3 +195,24 @@ bool removeFromWaitByIndex(uint8_t idx) {
   queueCount--;
   return true;
 }
+
+// Swap two queue indices if both are valid
+static bool swapWaitIndices(uint8_t a, uint8_t b) {
+  if (a >= queueCount || b >= queueCount) return false;
+  if (a == b) return true;
+  String temp = waitQueue[a];
+  waitQueue[a] = waitQueue[b];
+  waitQueue[b] = temp;
+  return true;
+}
+
+// Move a queued card up/down by a relative offset. Returns the new index or -1 if not possible.
+int moveQueueRelative(const String &id, int8_t delta) {
+  if (delta == 0) return -1;
+  int idx = indexOfWaitQueue(id);
+  if (idx < 0) return -1;
+  int target = idx + delta;
+  if (target < 0 || target >= queueCount) return -1;
+  if (!swapWaitIndices((uint8_t)idx, (uint8_t)target)) return -1;
+  return target;
+}

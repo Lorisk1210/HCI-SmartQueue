@@ -275,6 +275,39 @@ void handleClient(WiFiClient &client) {
               client.print(uid);
               client.println("\"}");
               break;
+            } else if (apiPath.startsWith("/api/queue/peek")) {
+              String uid;
+              int pos = apiQuery.indexOf("uid=");
+              if (pos >= 0) {
+                String rest = apiQuery.substring(pos + 4);
+                int amp = rest.indexOf('&');
+                uid = (amp >= 0) ? rest.substring(0, amp) : rest;
+              }
+              uid.replace("%3A", ":");
+              uid.replace("%3a", ":");
+
+              int position = -1;
+              if (uid.length() > 0) {
+                extern int indexOfWaitQueue(const String &id);
+                int idx = indexOfWaitQueue(uid);
+                if (idx >= 0) position = idx + 1;
+              }
+
+              client.println("HTTP/1.1 200 OK");
+              client.println("Content-Type: application/json");
+              client.println("Access-Control-Allow-Origin: *");
+              client.println("Connection: close");
+              client.println();
+              client.print("{\"ok\":");
+              client.print(position > 0 ? "true" : "false");
+              client.print(",\"uid\":\"");
+              client.print(uid);
+              client.print("\",\"position\":");
+              client.print(position);
+              client.print(",\"queueCount\":");
+              client.print(queueCount);
+              client.println("}");
+              break;
             } else if (apiPath.startsWith("/api/queue/confirm-entry")) {
               // Extract uid parameter
               String uid;
@@ -309,6 +342,61 @@ void handleClient(WiFiClient &client) {
               client.print(",\"uid\":\"");
               client.print(uid);
               client.println("\"}");
+              break;
+            } else if (apiPath.startsWith("/api/queue/swap-adjacent")) {
+              String uid;
+              String dir;
+              int posUid = apiQuery.indexOf("uid=");
+              if (posUid >= 0) {
+                String rest = apiQuery.substring(posUid + 4);
+                int amp = rest.indexOf('&');
+                uid = (amp >= 0) ? rest.substring(0, amp) : rest;
+              }
+              int posDir = apiQuery.indexOf("dir=");
+              if (posDir >= 0) {
+                String rest = apiQuery.substring(posDir + 4);
+                int amp = rest.indexOf('&');
+                dir = (amp >= 0) ? rest.substring(0, amp) : rest;
+              }
+
+              uid.replace("%3A", ":");
+              uid.replace("%3a", ":");
+              dir.toLowerCase();
+
+              bool ok = false;
+              int newIndex = -1;
+              if (uid.length() > 0 && dir.length() > 0) {
+                extern int moveQueueRelative(const String &id, int8_t delta);
+                int8_t delta = 0;
+                if (dir == "up") {
+                  delta = -1;
+                } else if (dir == "down") {
+                  delta = 1;
+                }
+                if (delta != 0) {
+                  newIndex = moveQueueRelative(uid, delta);
+                  ok = newIndex >= 0;
+                }
+              }
+
+              if (ok) {
+                String action = (dir == "up") ? "moved up" : "moved down";
+                setStatus("Queue gamble: " + uid + " " + action);
+                broadcastState();
+              }
+
+              client.println("HTTP/1.1 200 OK");
+              client.println("Content-Type: application/json");
+              client.println("Access-Control-Allow-Origin: *");
+              client.println("Connection: close");
+              client.println();
+              client.print("{\"ok\":");
+              client.print(ok ? "true" : "false");
+              client.print(",\"uid\":\"");
+              client.print(uid);
+              client.print("\",\"position\":");
+              client.print(newIndex >= 0 ? (newIndex + 1) : -1);
+              client.println("}");
               break;
             } else if (apiPath.startsWith("/api/health") || apiPath.startsWith("/api/status")) {
               // Health check endpoint
