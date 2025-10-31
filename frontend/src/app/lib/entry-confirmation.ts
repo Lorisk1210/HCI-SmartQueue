@@ -1,8 +1,13 @@
-/**
- * Shared state for managing entry confirmation requests
- * When a user becomes first in queue with a free slot, they have 5 minutes to confirm they still want to enter
- * This is a simple in-memory store. In production, use Redis or a database.
- */
+// =====================================================================
+// Entry Confirmation Manager - Time-Limited Entry Requests
+// =====================================================================
+// Shared state for managing entry confirmation requests. When a user becomes
+// first in queue with a free slot, they have 5 minutes to confirm they still
+// want to enter. If they don't confirm, they are automatically removed from
+// the queue. After confirming, they have 15 minutes to scan their card.
+// 
+// This is a simple in-memory store. In production, use Redis or a database
+// for persistence across server restarts and multi-server deployments.
 
 export interface PendingEntryConfirmation {
   uid: string;
@@ -11,13 +16,25 @@ export interface PendingEntryConfirmation {
   timeoutId?: NodeJS.Timeout;
 }
 
+// =====================================================================
+// Confirmation Storage
+// =====================================================================
+// Map of UID to pending confirmation requests. Only one confirmation can
+// be pending per user at a time.
 const pendingConfirmations = new Map<string, PendingEntryConfirmation>();
 
+// =====================================================================
+// Confirmation Timeout
+// =====================================================================
+// Users have 5 minutes to confirm they still want to enter after becoming
+// first in queue with a free slot available.
 const CONFIRMATION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
-/**
- * Start entry confirmation - called when user becomes first in queue with free slot
- */
+// =====================================================================
+// Start Entry Confirmation
+// =====================================================================
+// Start entry confirmation - called when user becomes first in queue with free slot.
+// Returns the current status, including whether a confirmation was already pending.
 export function startEntryConfirmation(uid: string): {
   pending: boolean;
   timeRemainingMs: number;
@@ -56,9 +73,12 @@ export function startEntryConfirmation(uid: string): {
   };
 }
 
-/**
- * Set up auto-removal callback for a pending confirmation
- */
+// =====================================================================
+// Setup Auto-Removal
+// =====================================================================
+// Set up auto-removal callback for a pending confirmation. When the timeout
+// expires, the callback is invoked to remove the user from the queue. This
+// allows the confirmation system to be used with different queue backends.
 export function setupAutoRemoval(
   uid: string,
   onTimeout: (uid: string) => void | Promise<void>
@@ -85,9 +105,11 @@ export function setupAutoRemoval(
   pendingConfirmations.set(uid, confirmation);
 }
 
-/**
- * Confirm the entry - user still wants to enter
- */
+// =====================================================================
+// Confirm Entry
+// =====================================================================
+// Confirm the entry - user still wants to enter. Returns true if confirmation
+// was successful, false if no pending confirmation exists or it has expired.
 export function confirmEntry(uid: string): boolean {
   const confirmation = pendingConfirmations.get(uid);
   if (!confirmation) {
@@ -119,9 +141,12 @@ export function confirmEntry(uid: string): boolean {
   return true;
 }
 
-/**
- * Get status of a pending entry confirmation
- */
+// =====================================================================
+// Get Entry Confirmation Status
+// =====================================================================
+// Get status of a pending entry confirmation. Returns null if no confirmation
+// is pending or it has been confirmed/expired. Otherwise returns the time
+// remaining in milliseconds.
 export function getEntryConfirmationStatus(uid: string): {
   pending: boolean;
   timeRemainingMs: number;
@@ -147,9 +172,11 @@ export function getEntryConfirmationStatus(uid: string): {
   };
 }
 
-/**
- * Cancel/clear entry confirmation (e.g., if user leaves or enters)
- */
+// =====================================================================
+// Clear Entry Confirmation
+// =====================================================================
+// Cancel/clear entry confirmation. Called when user leaves the queue or
+// successfully enters, to clean up the pending confirmation state.
 export function clearEntryConfirmation(uid: string): void {
   const confirmation = pendingConfirmations.get(uid);
   if (!confirmation) return;

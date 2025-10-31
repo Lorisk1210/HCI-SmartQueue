@@ -1,9 +1,23 @@
 "use client";
 
+// =====================================================================
+// QR Code Component - QR Code Generator
+// =====================================================================
+// Generates a QR code image from the provided text/URL. Uses the qrcode
+// library to create a data URL that can be displayed as an image.
+// Used in the ScanOverlay component to generate ticket tracking QR codes.
+
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 
-type Props = { text: string; size?: number; className?: string };
+type Props = { 
+  // Text or URL to encode in the QR code
+  text: string;
+  // Size of the QR code in pixels (default: 240)
+  size?: number;
+  // Optional CSS class name for styling
+  className?: string;
+};
 
 export default function Qr({ text, size = 240, className }: Props) {
   const [dataUrl, setDataUrl] = useState<string | null>(null);

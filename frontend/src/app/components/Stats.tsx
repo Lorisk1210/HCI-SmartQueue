@@ -1,5 +1,15 @@
+// =====================================================================
+// Stats Component - Queue Status Display
+// =====================================================================
+// Displays two large cards showing the current queue state:
+// - Available: Number of free slots in the library
+// - Waiting: Number of people currently in the waiting queue
+// This is the main visual indicator on the home page dashboard.
+
 interface StatsProps {
-  peopleInLibrary?: number; // available slots in screenshot context
+  // Number of available slots (peopleInLibrary is a bit of a misnomer - it's actually free slots)
+  peopleInLibrary?: number;
+  // Number of people currently waiting in the queue
   peopleInQueue?: number;
 }
 

@@ -1,7 +1,21 @@
+// =====================================================================
+// Base URL Route - LAN IP Detection
+// =====================================================================
+// API route that returns the server's local network IP address. This is used
+// to generate QR codes that point to URLs accessible from mobile devices on
+// the same network. The route detects the appropriate LAN IP from available
+// network interfaces, preferring iPhone hotspot ranges.
+
 export const runtime = 'nodejs';
 
 import os from 'os';
 
+// =====================================================================
+// LAN IP Selection
+// =====================================================================
+// Picks the best local network IP address from available network interfaces.
+// Prefers iPhone hotspot range (172.20.10.x), then Arduino AP range (192.168.4.x),
+// then common router ranges. This ensures QR codes work on mobile devices.
 function pickLanIp(): string | null {
   const nets = os.networkInterfaces();
   const candidates: string[] = [];

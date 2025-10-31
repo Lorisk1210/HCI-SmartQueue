@@ -1,3 +1,10 @@
+// =====================================================================
+// Leave Queue Route - Remove User from Queue
+// =====================================================================
+// API route that removes a user from the waiting queue. Receives the user's
+// UID and proxies the request to the Arduino. Returns success
+// or an error if the Arduino is unreachable.
+
 export const runtime = 'nodejs';
 
 import { getArduinoBaseUrl } from '@/app/lib/arduino-discovery';

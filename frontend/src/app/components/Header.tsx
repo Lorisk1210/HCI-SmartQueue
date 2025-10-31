@@ -1,3 +1,9 @@
+// =====================================================================
+// Header Component - Application Header
+// =====================================================================
+// Simple header component displaying the application name.
+// Currently unused in the main layout but available for future use.
+
 export default function Header() {
   return (
     <header className="bg-white border-b border-gray-200 py-6">

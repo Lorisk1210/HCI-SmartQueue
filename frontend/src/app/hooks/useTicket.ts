@@ -1,8 +1,21 @@
 "use client";
 
+// =====================================================================
+// useTicket Hook - Individual User Queue Status
+// =====================================================================
+// Hook that provides real-time queue status for a specific user (identified by UID).
+// Used on the individual ticket page where users can track their position.
+// Connects to the SSE stream and filters updates to show only information
+// relevant to this specific user.
+
 import { useEffect, useState } from "react";
 import { ArduinoState, StreamManager } from "../lib/sse/StreamManager";
 
+// =====================================================================
+// Ticket Status Type
+// =====================================================================
+// Complete status information for a single user, including their position
+// in queue, whether they're inside, and if it's their turn to enter.
 export type TicketStatus = {
   uid: string;
   queuePosition: number; // -1 if not queued
@@ -10,9 +23,15 @@ export type TicketStatus = {
   freeSlots: number;
   maxSlots: number;
   inCount: number;
-  isTurn: boolean; // true if #1 and freeSlots > 0
+  // True if this user is first in queue and there are free slots available
+  isTurn: boolean;
 };
 
+// =====================================================================
+// Stream Manager Singleton
+// =====================================================================
+// Create a single StreamManager instance shared across all ticket pages.
+// This reuses the same SSE connection efficiently.
 const manager = new StreamManager();
 
 export function useTicket(uid: string): TicketStatus {
@@ -26,6 +45,12 @@ export function useTicket(uid: string): TicketStatus {
     isTurn: false,
   });
 
+  // =====================================================================
+  // SSE State Updates
+  // =====================================================================
+  // Listen for Arduino state updates and filter to find this user's position
+  // in the queue and inside lists. Calculates whether it's their turn based
+  // on being first in queue with free slots available.
   useEffect(() => {
     manager.connect();
     const off = manager.on("state:update", (s: ArduinoState) => {

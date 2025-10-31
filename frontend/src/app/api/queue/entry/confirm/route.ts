@@ -1,8 +1,19 @@
+// =====================================================================
+// Confirm Entry Route - User Confirms Entry Intent
+// =====================================================================
+// API route for confirming entry when a user becomes first in queue with
+// a free slot. Validates the confirmation timeout hasn't expired, marks
+// the entry as confirmed, and notifies the Arduino to start the 15-minute
+// scan window. Also provides a GET endpoint to check confirmation status.
+
 export const runtime = 'nodejs';
 
 import { confirmEntry, getEntryConfirmationStatus } from '@/app/lib/entry-confirmation';
 import { getArduinoBaseUrl } from '@/app/lib/arduino-discovery';
 
+// =====================================================================
+// POST Handler - Confirm Entry
+// =====================================================================
 export async function POST(req: Request) {
   let uid: string | undefined;
   try {
@@ -57,6 +68,11 @@ export async function POST(req: Request) {
   });
 }
 
+// =====================================================================
+// GET Handler - Check Confirmation Status
+// =====================================================================
+// Returns the current status of a pending entry confirmation, including
+// whether it's still pending and how much time remains.
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const uid = searchParams.get('uid');

@@ -1,3 +1,17 @@
+// =====================================================================
+// Stream Manager - Server-Sent Events (SSE) Connection Management
+// =====================================================================
+// Manages the SSE connection to the Arduino that provides real-time queue updates.
+// Uses a leader-follower pattern where only one browser tab maintains the actual
+// SSE connection, and other tabs receive updates via BroadcastChannel. This prevents
+// multiple connections and reduces server load. Handles automatic reconnection,
+// heartbeat monitoring, and event distribution to registered handlers.
+
+// =====================================================================
+// Arduino State Type
+// =====================================================================
+// Complete state snapshot from the Arduino, including queue lists, slot counts,
+// and recent RFID scan information.
 export type ArduinoState = {
   freeSlots: number;
   inCount: number;
@@ -14,6 +28,11 @@ export type ArduinoState = {
   t: number;
 };
 
+// =====================================================================
+// Queue Update Type
+// =====================================================================
+// Simplified queue update event that focuses on key metrics rather than
+// full state. Used for lightweight queue:update events.
 export type QueueUpdate = {
   length: number;
   nextTicket: string | null;
@@ -22,6 +41,12 @@ export type QueueUpdate = {
   maxSlots: number;
 };
 
+// =====================================================================
+// RFID Scan Type
+// =====================================================================
+// Event type representing an RFID card scan at the entrance. Contains
+// the scan outcome (accepted/rejected) and reason, plus queue position
+// if the user was queued.
 export type RfidScan = {
   uid: string;
   status: 'accepted' | 'rejected';
@@ -36,6 +61,11 @@ export type RfidScan = {
   dispenseEligible?: boolean;
 };
 
+// =====================================================================
+// Connection State Type
+// =====================================================================
+// Represents the current state of the SSE connection. Used for debugging
+// and UI indicators of connection health.
 export type ConnectionState =
   | 'idle'
   | 'connecting'
@@ -45,6 +75,11 @@ export type ConnectionState =
   | 'error'
   | 'ended';
 
+// =====================================================================
+// Event Handler Types
+// =====================================================================
+// Type definitions for event handlers and the handler registry.
+// Each event type has its own set of registered handlers.
 type EventHandler<T> = (payload: T) => void;
 
 type Handlers = {
@@ -55,17 +90,34 @@ type Handlers = {
   'state:update': Set<EventHandler<ArduinoState>>;
 };
 
-const CHANNEL_NAME = 'sse-events';
-const LEADER_KEY = 'smartqueue-sse-leader';
-const LEADER_TTL_MS = 5000;
-const RECONNECT_BASE_MS = 500;
-const RECONNECT_MAX_MS = 20000;
-const HEARTBEAT_STALE_MS = 60000; // 60s without any message => stale
+// =====================================================================
+// Leader-Follower Configuration
+// =====================================================================
+// Configuration constants for the leader-follower pattern. Only one tab
+// acts as "leader" and maintains the SSE connection, while other tabs
+// receive updates via BroadcastChannel.
+const CHANNEL_NAME = 'sse-events';           // BroadcastChannel name for tab communication
+const LEADER_KEY = 'smartqueue-sse-leader';   // localStorage key for leader election
+const LEADER_TTL_MS = 5000;                   // Leader must renew every 5 seconds
+const RECONNECT_BASE_MS = 500;                // Initial reconnect delay (exponential backoff)
+const RECONNECT_MAX_MS = 20000;               // Maximum reconnect delay
+const HEARTBEAT_STALE_MS = 60000;             // Connection considered stale after 60s without messages
 
+// =====================================================================
+// Stream Manager Options
+// =====================================================================
+// Optional configuration for customizing the EventSource creation.
+// Useful for testing or using polyfills.
 export interface StreamManagerOptions {
   eventSourceFactory?: (url: string) => EventSource;
 }
 
+// =====================================================================
+// Stream Manager Class
+// =====================================================================
+// Main class that manages the SSE connection lifecycle, event distribution,
+// and leader-follower coordination. All instances share the same connection
+// state through BroadcastChannel.
 export class StreamManager {
   private eventSource: EventSource | null = null;
   private readonly handlers: Handlers = {

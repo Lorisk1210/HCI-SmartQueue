@@ -1,5 +1,12 @@
 "use client";
 
+// =====================================================================
+// Debug Panel Component - SSE Connection Monitor
+// =====================================================================
+// Development tool that displays Server-Sent Events (SSE) connection status
+// and recent events. Only visible when ?debug=1 is added to the URL.
+// Useful for troubleshooting connection issues and monitoring real-time data flow.
+
 import React from "react";
 import { useSmartQueue } from "../hooks/useSmartQueue";
 

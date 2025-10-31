@@ -1,11 +1,18 @@
-/**
- * Arduino Discovery Utility
- * Automatically discovers the Arduino's IP address by trying common IP addresses
- */
+// =====================================================================
+// Arduino Discovery Utility - IP Address Detection
+// =====================================================================
+// Automatically discovers the Arduino's IP address by trying common IP addresses
+// on the local network. This is necessary because the Arduino's IP may change
+// when connecting to different WiFi networks (e.g., phone hotspot vs. campus WiFi).
+// Uses a caching mechanism to avoid repeated discovery attempts.
 
 const DEFAULT_ARDUINO_BASE_URL = 'http://172.20.10.2';
 
-// Common Arduino IP patterns to try (prioritized order)
+// =====================================================================
+// Common Arduino IP Patterns
+// =====================================================================
+// List of common IP addresses to try when discovering the Arduino. Tried in
+// priority order, with iPhone hotspot range first (most common use case).
 const COMMON_ARDUINO_IPS = [
   'http://172.20.10.2',   // iPhone hotspot default - PRIMARY
   'http://192.168.4.1',    // ESP32 AP default
@@ -14,30 +21,47 @@ const COMMON_ARDUINO_IPS = [
   'http://10.0.0.1',       // Another common pattern
 ];
 
-// Cache the discovered Arduino URL for 30 seconds
+// =====================================================================
+// Discovery Cache
+// =====================================================================
+// Cache the discovered Arduino URL for 30 seconds to avoid repeated network
+// requests when multiple components need the Arduino's address.
 let cachedArduinoUrl: string | null = null;
 let cacheTimestamp = 0;
 const CACHE_TTL_MS = 30000; // 30 seconds
 
-/**
- * Discovers the Arduino's IP address by trying to reach its health endpoint
- * Returns the base URL (e.g., "http://192.168.1.1")
- */
+// =====================================================================
+// Arduino Discovery Function
+// =====================================================================
+// Discovers the Arduino's IP address by trying to reach its health endpoint
+// at each common IP address. Returns the base URL (e.g., "http://192.168.1.1").
+// Checks environment variable first, then cache, then tries network discovery.
 export async function discoverArduino(): Promise<string> {
-  // Check environment variable first
+  // =====================================================================
+  // Environment Variable Check
+  // =====================================================================
+  // If ARDUINO_BASE_URL is set in environment variables, use it directly.
+  // This is useful for production deployments where the IP is known.
   const envUrl = process.env.ARDUINO_BASE_URL;
   if (envUrl) {
     console.log(`[arduino-discovery] Using ARDUINO_BASE_URL from env: ${envUrl}`);
     return envUrl.replace(/\/$/, '');
   }
 
-  // Check cache
+  // =====================================================================
+  // Cache Check
+  // =====================================================================
+  // Return cached value if it's still fresh (within 30 seconds)
   const now = Date.now();
   if (cachedArduinoUrl && (now - cacheTimestamp) < CACHE_TTL_MS) {
     return cachedArduinoUrl;
   }
 
-  // Try primary IP first (faster when it works)
+  // =====================================================================
+  // Primary IP Quick Check
+  // =====================================================================
+  // Try the primary IP first (iPhone hotspot default). If this works, we can
+  // skip trying all the other addresses, making discovery much faster.
   try {
     const primaryUrl = COMMON_ARDUINO_IPS[0]; // 172.20.10.2
     const controller = new AbortController();
@@ -65,7 +89,11 @@ export async function discoverArduino(): Promise<string> {
     console.log(`[arduino-discovery] Primary IP failed, trying alternates...`);
   }
   
-  // Try remaining IPs in parallel
+  // =====================================================================
+  // Parallel Discovery of Alternate IPs
+  // =====================================================================
+  // Try all remaining IP addresses in parallel to speed up discovery.
+  // Each attempt has a 2-second timeout to avoid hanging on unreachable addresses.
   const discoveryPromises = COMMON_ARDUINO_IPS.slice(1).map(async (baseUrl) => {
     try {
       const controller = new AbortController();
@@ -109,9 +137,11 @@ export async function discoverArduino(): Promise<string> {
   return DEFAULT_ARDUINO_BASE_URL;
 }
 
-/**
- * Gets the Arduino base URL with optional cache bypass
- */
+// =====================================================================
+// Get Arduino Base URL (with Cache Control)
+// =====================================================================
+// Gets the Arduino base URL with optional cache bypass. Useful when the
+// Arduino's IP might have changed and we need to force a fresh discovery.
 export async function getArduinoBaseUrl(bypassCache = false): Promise<string> {
   if (bypassCache) {
     cachedArduinoUrl = null;
@@ -120,9 +150,11 @@ export async function getArduinoBaseUrl(bypassCache = false): Promise<string> {
   return await discoverArduino();
 }
 
-/**
- * Clears the cached Arduino URL (useful when connection fails)
- */
+// =====================================================================
+// Clear Arduino Cache
+// =====================================================================
+// Clears the cached Arduino URL. Useful when connection fails and we suspect
+// the IP address might have changed.
 export function clearArduinoCache(): void {
   cachedArduinoUrl = null;
   cacheTimestamp = 0;

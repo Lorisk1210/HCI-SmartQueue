@@ -1,9 +1,23 @@
 "use client";
 
+// =====================================================================
+// useSmartQueue Hook - Main Queue State Management
+// =====================================================================
+// This is the primary hook that manages the queue state for the home page dashboard.
+// It maintains a Server-Sent Events (SSE) connection to receive real-time updates
+// from the Arduino about queue state and RFID scans. It handles overlay display
+// logic, WhatsApp notifications, and calculates estimated wait times based on
+// average stay duration.
+
 import { useEffect, useRef, useState } from "react";
 import { QueueUpdate, RfidScan, StreamManager } from "../lib/sse/StreamManager";
 import { handleRfidScan, handleQueueUpdate } from "../lib/notify/whatsapp";
 
+// =====================================================================
+// Overlay State Type
+// =====================================================================
+// Defines the state of the scan overlay that appears when RFID cards are scanned.
+// Can be hidden or visible with different message types.
 type OverlayState =
   | { visible: false }
   | {
@@ -15,6 +29,11 @@ type OverlayState =
       dispenseAvailable?: boolean;
     };
 
+// =====================================================================
+// Queue State Type
+// =====================================================================
+// Complete state object containing all queue information, connection status,
+// and overlay state. This is what the hook returns to components.
 type SmartQueueState = {
   freeSlots: number;
   inCount: number;
@@ -24,15 +43,31 @@ type SmartQueueState = {
   connection: string;
   overlay: OverlayState;
   debugEvents: Array<{ type: string; ts: number; payload: unknown }>;
-  avgStayMinutes: number; // rolling average of time users spend inside
+  // Rolling average of time users spend inside the library (used for ETA calculation)
+  avgStayMinutes: number;
 };
 
+// =====================================================================
+// Hook Return Type
+// =====================================================================
+// The hook returns all state plus a function to dismiss the overlay
 type SmartQueueReturn = SmartQueueState & {
   dismissOverlay: () => void;
 };
 
+// =====================================================================
+// Stream Manager Singleton
+// =====================================================================
+// Create a single StreamManager instance that will be shared across all
+// components using this hook. This ensures only one SSE connection is maintained.
 const manager = new StreamManager();
 
+// =====================================================================
+// ETA Calculation Utility
+// =====================================================================
+// Calculates estimated wait time in minutes based on queue position.
+// Uses the average stay duration to estimate how many "rounds" of people
+// need to exit before this user can enter.
 function computeEtaMinutes(position: number, maxSlots: number, avgStayMinutes: number): number {
   if (position <= 0 || maxSlots <= 0) return 0;
   const rounds = Math.ceil(position / maxSlots);
@@ -53,8 +88,18 @@ export function useSmartQueue(): SmartQueueReturn {
     avgStayMinutes: 60,
   });
 
+  // =====================================================================
+  // Overlay Auto-Dismiss Timer
+  // =====================================================================
+  // Reference to the timer that automatically dismisses the overlay after
+  // 10 seconds. Stored in a ref to persist across re-renders.
   const overlayTimer = useRef<number | null>(null);
 
+  // =====================================================================
+  // Dismiss Overlay Function
+  // =====================================================================
+  // Manually dismiss the overlay and clear any pending auto-dismiss timer.
+  // Called when user clicks/taps the overlay or when explicitly requested.
   const dismissOverlay = () => {
     if (overlayTimer.current) {
       window.clearTimeout(overlayTimer.current);
@@ -63,13 +108,28 @@ export function useSmartQueue(): SmartQueueReturn {
     setState((prev) => ({ ...prev, overlay: { visible: false } }));
   };
 
-  // Singleton connect
+  // =====================================================================
+  // SSE Connection Management
+  // =====================================================================
+  // Establish the SSE connection when the hook is first used. The StreamManager
+  // uses a leader-follower pattern to ensure only one tab maintains the connection.
   useEffect(() => {
     manager.connect();
     return () => manager.disconnect();
   }, []);
 
+  // =====================================================================
+  // Event Handlers Setup
+  // =====================================================================
+  // Register handlers for queue updates, RFID scans, and system heartbeats.
+  // These handlers update the component state and trigger WhatsApp notifications.
   useEffect(() => {
+    // =====================================================================
+    // Queue Update Handler
+    // =====================================================================
+    // Fired whenever the queue state changes (someone joins/leaves, slots free up).
+    // Updates the displayed queue statistics and triggers WhatsApp notifications
+    // when appropriate conditions are met.
     const offQueue = manager.on("queue:update", (q: QueueUpdate) => {
       // Handle WhatsApp notifications
       handleQueueUpdate(q);
@@ -85,16 +145,30 @@ export function useSmartQueue(): SmartQueueReturn {
       }));
     });
 
-    // Track entry times to compute average stay when people leave
+    // =====================================================================
+    // Average Stay Duration Tracking
+    // =====================================================================
+    // Track when people enter and leave to calculate average stay duration.
+    // This is used to provide more accurate wait time estimates. Uses module-level
+    // refs stored on the hook function itself to persist across re-renders.
     const entryTimesRef = (useSmartQueue as any)._entryTimesRef || { current: new Map<string, number>() };
     (useSmartQueue as any)._entryTimesRef = entryTimesRef;
     const durationsRef = (useSmartQueue as any)._durationsRef || { current: [] as number[] };
     (useSmartQueue as any)._durationsRef = durationsRef;
 
+    // =====================================================================
+    // RFID Scan Handler
+    // =====================================================================
+    // Fired whenever an RFID card is scanned at the entrance. Updates overlay state,
+    // tracks entry/exit times for average stay calculation, handles entry confirmation
+    // cleanup, and triggers WhatsApp notifications.
     const offScan = manager.on("rfid:scan", (scan: RfidScan) => {
       // Handle WhatsApp notifications
       handleRfidScan(scan);
       
+      // =====================================================================
+      // Entry Confirmation Cleanup
+      // =====================================================================
       // If someone enters from queue via RFID scan, clear their entry confirmation
       // (they entered directly, no need for web/WhatsApp confirmation)
       if (scan.status === "accepted" && scan.reason === "entered_from_queue") {
@@ -157,6 +231,11 @@ export function useSmartQueue(): SmartQueueReturn {
       }, 10000);
     });
 
+    // =====================================================================
+    // System Heartbeat Handler
+    // =====================================================================
+    // Fired periodically to indicate the SSE connection is healthy. Updates
+    // connection status and adds debug events for monitoring.
     const offHeartbeat = manager.on("system:heartbeat", ({ intervalMs }) => {
       setState((prev) => ({
         ...prev,
@@ -173,11 +252,19 @@ export function useSmartQueue(): SmartQueueReturn {
     };
   }, []);
 
-  // No external/browser notifications in QR approach
-
+  // =====================================================================
+  // Return Hook State
+  // =====================================================================
+  // Return all state and the dismiss overlay function for components to use.
+  // Note: Browser push notifications are not used - QR codes provide the notification mechanism.
   return { ...state, dismissOverlay };
 }
 
+// =====================================================================
+// Debug Events Helper
+// =====================================================================
+// Maintains a rolling list of recent SSE events for the debug panel.
+// Limits to the most recent 50 events to prevent memory issues.
 function pushDebug<T>(arr: Array<{ type: string; ts: number; payload: unknown }>, type: string, payload: T) {
   const next = arr.concat({ type, ts: Date.now(), payload });
   if (next.length > 50) next.shift();

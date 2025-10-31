@@ -1,14 +1,35 @@
+// =====================================================================
+// SSE Stream Route - Arduino Event Stream Proxy
+// =====================================================================
+// Next.js API route that proxies Server-Sent Events (SSE) from the Arduino
+// to the browser. This is necessary because the Arduino may be on a different
+// network or IP address than what the browser can directly access. The route
+// discovers the Arduino's IP address and forwards the event stream with
+// proper SSE headers and connection management.
+
 export const runtime = 'nodejs';
 
 import { getArduinoBaseUrl } from '@/app/lib/arduino-discovery';
 
+// =====================================================================
+// Helper Functions
+// =====================================================================
 function getArduinoEventsUrl(base: string): string {
   const trimmed = base.replace(/\/$/, '');
   return `${trimmed}/events`;
 }
 
+// =====================================================================
+// GET Handler - Stream Setup
+// =====================================================================
+// Sets up the SSE stream connection to the Arduino. Implements retry logic
+// with exponential backoff and connection timeouts. If the connection fails,
+// returns an error response. Otherwise, pipes the stream to the client.
 export async function GET(request: Request) {
-  // Try to discover Arduino first
+  // =====================================================================
+  // Arduino Discovery
+  // =====================================================================
+  // Try to discover Arduino first - may need to try multiple IP addresses
   const arduinoBase = await getArduinoBaseUrl();
   const upstreamUrl = getArduinoEventsUrl(arduinoBase);
   const clientLastEventId = request.headers.get('last-event-id') || undefined;
@@ -27,6 +48,11 @@ export async function GET(request: Request) {
   const MAX_CONNECT_ATTEMPTS = Math.max(1, Number(process.env.STREAM_CONNECT_ATTEMPTS || '') || 3);
   const CONNECT_RETRY_DELAY_MS = Math.max(0, Number(process.env.STREAM_CONNECT_RETRY_DELAY_MS || '') || 600);
 
+  // =====================================================================
+  // Connection Retry Loop
+  // =====================================================================
+  // Attempt to connect to Arduino with retries. Each attempt has a timeout
+  // to avoid hanging indefinitely on unreachable addresses.
   let lastError: unknown = undefined;
   for (let attempt = 1; attempt <= MAX_CONNECT_ATTEMPTS; attempt++) {
     try {
@@ -84,7 +110,12 @@ export async function GET(request: Request) {
     return new Response(errorMsg, { status: 502 });
   }
 
-  // Create a passthrough TransformStream to pipe SSE bytes
+  // =====================================================================
+  // Stream Piping
+  // =====================================================================
+  // Create a passthrough TransformStream to pipe SSE bytes from Arduino
+  // to the browser client. When the client disconnects, abort the upstream
+  // connection to clean up resources.
   const { readable, writable } = new TransformStream();
   const writer = writable.getWriter();
 

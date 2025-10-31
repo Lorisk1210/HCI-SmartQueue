@@ -1,17 +1,41 @@
 "use client";
 
+// =====================================================================
+// Individual Ticket Page - Personal Queue Status
+// =====================================================================
+// This page displays the personal queue status for a specific user (identified by UID).
+// Users access this page by scanning the QR code shown on the scan overlay.
+// The page shows their position in queue, whether slots are free, and allows them
+// to leave the queue. It also handles entry confirmation when they become first
+// in line with an available slot.
+
 import React, { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useTicket } from "@/app/hooks/useTicket";
 
 export default function TicketPage() {
+  // =====================================================================
+  // Extract and Decode UID from URL
+  // =====================================================================
+  // The UID comes from the URL path as a route parameter. It may be URL-encoded,
+  // so we decode it and convert to uppercase for consistency with Arduino format.
   const params = useParams<{ uid: string }>();
   const raw = params.uid;
   let decoded = typeof raw === 'string' ? raw : '';
   try { decoded = decodeURIComponent(decoded); } catch (_) {}
   const uid = decoded.toUpperCase();
+  
+  // =====================================================================
+  // Real-Time Queue Status
+  // =====================================================================
+  // The useTicket hook connects to the SSE stream and provides live updates about
+  // this user's position, whether they're inside, slot availability, and if it's their turn.
   const { queuePosition, inside, freeSlots, maxSlots, inCount, isTurn } = useTicket(uid);
   
+  // =====================================================================
+  // Component State
+  // =====================================================================
+  // Local state for managing UI interactions and error handling
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [entryConfirmationVisible, setEntryConfirmationVisible] = useState(false);
@@ -19,7 +43,13 @@ export default function TicketPage() {
     timeRemainingMs: number;
   } | null>(null);
 
-  // Detect when user becomes first in queue with free slot and start confirmation timer
+  // =====================================================================
+  // Entry Confirmation Timer
+  // =====================================================================
+  // When a user becomes first in queue with a free slot available, they must
+  // confirm within 5 minutes that they still want to enter. If they don't confirm,
+  // they are automatically removed from the queue. This effect detects when the
+  // user becomes eligible and starts the confirmation timer.
   useEffect(() => {
     if (!uid || inside || queuePosition === -1 || !isTurn) {
       // Clear confirmation if user is no longer eligible
@@ -63,7 +93,12 @@ export default function TicketPage() {
     }
   }, [uid, isTurn, inside, queuePosition, entryConfirmationVisible]);
 
-  // Poll for confirmation status while dialog is visible
+  // =====================================================================
+  // Confirmation Status Polling
+  // =====================================================================
+  // While the entry confirmation dialog is visible, poll the server every second
+  // to update the countdown timer. If the confirmation expires or is confirmed
+  // elsewhere (e.g., via WhatsApp), the dialog will be dismissed.
   useEffect(() => {
     if (!uid || !entryConfirmationVisible || inside) return;
 
@@ -88,6 +123,12 @@ export default function TicketPage() {
     return () => clearInterval(interval);
   }, [uid, entryConfirmationVisible, inside]);
 
+  // =====================================================================
+  // Leave Queue Handler
+  // =====================================================================
+  // Allows the user to manually remove themselves from the queue. This sends
+  // a request to the Next.js API, which proxies to the Arduino to update
+  // the queue state. Also clears any pending entry confirmation.
   async function handleLeaveQueue() {
     if (!uid) return;
     setLeaving(true);
@@ -111,6 +152,13 @@ export default function TicketPage() {
     }
   }
 
+  // =====================================================================
+  // Confirm Entry Handler
+  // =====================================================================
+  // When the user confirms they still want to enter (they're first in queue
+  // with a free slot), this confirms the entry and notifies the Arduino to
+  // start a 15-minute timer. During this 15 minutes, the user must scan
+  // their RFID card at the entrance to actually enter.
   async function handleConfirmEntry() {
     if (!uid) return;
     setError(null);
@@ -134,6 +182,11 @@ export default function TicketPage() {
     }
   }
 
+  // =====================================================================
+  // Time Formatting Utility
+  // =====================================================================
+  // Converts milliseconds to a human-readable MM:SS format for displaying
+  // the countdown timer in the entry confirmation dialog.
   function formatTimeRemaining(ms: number): string {
     const totalSeconds = Math.ceil(ms / 1000);
     const minutes = Math.floor(totalSeconds / 60);
@@ -141,6 +194,13 @@ export default function TicketPage() {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }
 
+  // =====================================================================
+  // Dynamic UI Text Generation
+  // =====================================================================
+  // Generate appropriate titles and subtitles based on the user's current state:
+  // - Inside the library: show occupancy
+  // - Not in queue: prompt to scan card
+  // - In queue: show position and whether it's their turn
   const title = inside ? "You're inside" : (queuePosition === -1 ? "Not in queue" : `You're #${queuePosition}`);
   const subtitle = inside
     ? `Currently inside (${inCount}/${maxSlots})`
@@ -186,7 +246,16 @@ export default function TicketPage() {
           {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
         </div>
         
-        {/* Entry Confirmation Dialog - shown when user is first with free slot */}
+        {/* 
+          =====================================================================
+          Entry Confirmation Dialog
+          =====================================================================
+          Modal dialog that appears when the user becomes first in queue with
+          a free slot available. They have 5 minutes to confirm they still want
+          to enter. If they don't confirm, they are automatically removed from
+          the queue. After confirming, they have 15 minutes to scan their card
+          at the entrance before the confirmation expires.
+        */}
         {entryConfirmationVisible && isTurn && !inside && (
           <div 
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"

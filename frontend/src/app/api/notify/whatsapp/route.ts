@@ -1,9 +1,21 @@
+// =====================================================================
+// WhatsApp Notification Route - Send Messages via Twilio
+// =====================================================================
+// API route that sends WhatsApp notifications via Twilio. Handles two types
+// of notifications: "queued" (someone joined the queue) and "ready" (slot
+// available, first person should confirm). For "ready" notifications, includes
+// interactive response options that users can reply to via the webhook.
+
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import twilio from 'twilio';
 
-// Twilio credentials from environment variables
+// =====================================================================
+// Twilio Configuration
+// =====================================================================
+// Twilio credentials from environment variables. These must be set for
+// WhatsApp notifications to work.
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
 const FROM = process.env.TWILIO_FROM;
@@ -15,6 +27,12 @@ if (!accountSid || !authToken || !FROM || !TO) {
 
 const client = twilio(accountSid, authToken);
 
+// =====================================================================
+// POST Handler - Send Notification
+// =====================================================================
+// Receives notification type and optional nextTicket UID, then sends the
+// appropriate WhatsApp message. For "ready" type, includes reply instructions
+// that the webhook can process.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();

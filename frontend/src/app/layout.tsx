@@ -1,6 +1,18 @@
+// =====================================================================
+// Root Layout - Application Shell
+// =====================================================================
+// This is the root layout component that wraps all pages in the application.
+// It sets up fonts, global styles, and provides the HTML structure for the app.
+
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+
+// =====================================================================
+// Font Configuration
+// =====================================================================
+// Load custom fonts from Google Fonts for typography. These fonts are made
+// available as CSS variables that can be used throughout the application.
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,6 +24,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// =====================================================================
+// Page Metadata
+// =====================================================================
+// Metadata for the application that appears in browser tabs and search results.
 export const metadata: Metadata = {
   title: "SmartQueue",
   description: "SmartQueue",

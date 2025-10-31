@@ -1,18 +1,32 @@
+// =====================================================================
+// WhatsApp Webhook Route - Handle User Replies
+// =====================================================================
+// Receives WhatsApp messages from Twilio when users reply to notifications.
+// Parses the reply (button click or text message) and either confirms entry
+// or removes the user from the queue. Returns TwiML responses for Twilio to
+// send back to the user.
+
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 
 const DEFAULT_ARDUINO_BASE_URL = 'http://172.20.10.2';
 
+// =====================================================================
+// Helper Functions
+// =====================================================================
 function getArduinoBaseUrl(): string {
   const base = process.env.ARDUINO_BASE_URL || DEFAULT_ARDUINO_BASE_URL;
   return base.replace(/\/$/, '');
 }
 
-/**
- * Handle incoming WhatsApp messages (webhook from Twilio)
- * This receives responses when users click buttons or send messages
- */
+// =====================================================================
+// POST Handler - Process User Reply
+// =====================================================================
+// Handle incoming WhatsApp messages (webhook from Twilio). This receives
+// responses when users click buttons or send text messages. Validates the
+// sender, fetches the current queue state to find the first person, then
+// processes the reply to either confirm entry or leave the queue.
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
@@ -22,12 +36,21 @@ export async function POST(req: NextRequest) {
     
     console.log('WhatsApp webhook received:', { from, body, buttonText });
 
-    // Only process messages from the verified number
+    // =====================================================================
+    // Sender Validation
+    // =====================================================================
+    // Only process messages from the verified number to prevent unauthorized
+    // access to queue management functions.
     if (!from || !from.includes('+41774401715')) {
       return new NextResponse('Unauthorized', { status: 403 });
     }
 
-    // Get current queue state to find the first person
+    // =====================================================================
+    // Queue State Fetching
+    // =====================================================================
+    // Get current queue state to find the first person who should respond.
+    // Connects to the Arduino SSE endpoint and reads the first message to
+    // extract the queue state.
     const arduinoBase = getArduinoBaseUrl();
     let firstInQueue: string | null = null;
     
@@ -70,7 +93,12 @@ export async function POST(req: NextRequest) {
       console.error('Failed to get Arduino state:', err);
     }
 
-    // Parse user response
+    // =====================================================================
+    // Response Processing
+    // =====================================================================
+    // Parse user response (button click or text message). Supports multiple
+    // formats: "1" or "YES" or "enter" for confirmation, "2" or "NO" or "leave"
+    // for leaving the queue. Processes the action and returns appropriate TwiML.
     const responseText = (buttonText || body).toLowerCase().trim();
     
     // Handle button clicks or text responses
@@ -191,7 +219,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Unknown response
+    // =====================================================================
+    // Unknown Response
+    // =====================================================================
+    // If the response doesn't match expected patterns, send instructions
+    // back to the user explaining how to reply.
     const twiml = `<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Message>Reply with:\n1️⃣ or YES - Confirm entry\n2️⃣ or NO - Leave queue</Message>

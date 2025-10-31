@@ -1,21 +1,42 @@
 "use client";
 
+// =====================================================================
+// Scan Overlay Component - RFID Scan Feedback
+// =====================================================================
+// Full-screen overlay that appears when an RFID card is scanned at the
+// entrance. Shows different messages and actions based on the scan outcome.
+// For queued users, displays a QR code they can scan on their phone to
+// track their position in real-time.
+
 import React, { useEffect, useMemo, useState } from "react";
 import Qr from "./Qr";
 
 type Props = {
+  // Whether the overlay should be visible
   visible: boolean;
+  // Type of scan outcome: welcome (can enter), queued (added to queue),
+  // goodbye (left library), denied (queue full)
   kind?: "welcome" | "queued" | "goodbye" | "denied";
+  // RFID card UID that was scanned
   uid?: string;
+  // Position in queue (1-based, only shown when queued)
   queuePosition?: number;
+  // Estimated wait time in minutes (only shown when queued)
   etaMinutes?: number;
+  // Callback to dismiss/close the overlay
   onDismiss?: () => void;
+  // Whether earplugs are available for dispense (shown for welcome messages)
   dispenseAvailable?: boolean;
 };
 
 export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinutes, onDismiss, dispenseAvailable }: Props) {
   if (!visible) return null;
 
+  // =====================================================================
+  // Dynamic Message Generation
+  // =====================================================================
+  // Generate appropriate title and subtitle text based on the scan outcome.
+  // Different messages are shown for different scenarios to guide the user.
   let title = "";
   let subtitle = "";
   if (kind === "welcome") {
@@ -32,6 +53,10 @@ export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinu
     subtitle = typeof etaMinutes === "number" ? `Estimated wait ~ ${etaMinutes} min` : "Please wait to be called.";
   }
 
+  // =====================================================================
+  // Overlay Interaction
+  // =====================================================================
+  // Allow user to dismiss overlay by clicking/tapping anywhere on it
   const handleClick = () => {
     if (onDismiss) {
       onDismiss();
@@ -40,6 +65,13 @@ export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinu
   const [leaving, setLeaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // =====================================================================
+  // QR Code Base URL Detection
+  // =====================================================================
+  // Determine the base URL for generating QR codes. This needs to be
+  // accessible from mobile devices, so we try to detect the LAN IP address
+  // rather than using localhost. Falls back to environment variable or
+  // queries the server for the correct base URL.
   const [ticketBase, setTicketBase] = useState<string>("");
   useEffect(() => {
     if (!uid) return;
@@ -69,12 +101,23 @@ export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinu
     })();
   }, [uid]);
 
+  // =====================================================================
+  // QR Code URL Generation
+  // =====================================================================
+  // Construct the full URL that the QR code will point to. Users scan this
+  // QR code on their phone to access their personal ticket page where they
+  // can see their queue position and manage their entry.
   const ticketUrl = useMemo(() => {
     if (!uid || !ticketBase) return "";
     const encoded = encodeURIComponent(uid);
     return `${ticketBase}/ticket/${encoded}`;
   }, [uid, ticketBase]);
 
+  // =====================================================================
+  // Leave Queue Handler
+  // =====================================================================
+  // Allows queued users to remove themselves from the queue directly from
+  // the overlay. Useful if they change their mind immediately after scanning.
   async function handleLeaveQueue() {
     if (!uid) return;
     setLeaving(true);
