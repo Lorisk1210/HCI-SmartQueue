@@ -11,6 +11,10 @@
 import { useEffect, useState } from "react";
 import { ArduinoState, StreamManager } from "../lib/sse/StreamManager";
 
+function normalizeUid(value: string | null | undefined): string {
+  return (value ?? "").replace(/[^0-9A-F]/gi, "").toUpperCase();
+}
+
 // =====================================================================
 // Ticket Status Type
 // =====================================================================
@@ -52,16 +56,31 @@ export function useTicket(uid: string): TicketStatus {
   // in the queue and inside lists. Calculates whether it's their turn based
   // on being first in queue with free slots available.
   useEffect(() => {
+    const target = normalizeUid(uid);
+    if (!target) {
+      setStatus((prev) => ({
+        ...prev,
+        uid,
+        queuePosition: -1,
+        inside: false,
+        freeSlots: 0,
+        maxSlots: 0,
+        inCount: 0,
+        isTurn: false,
+      }));
+      return;
+    }
+
     manager.connect();
     const off = manager.on("state:update", (s: ArduinoState) => {
-      const id = uid.toUpperCase();
-      const posIdx = s.queue.findIndex((x) => (x || '').toUpperCase() === id);
-      const inIdx = s.in.findIndex((x) => (x || '').toUpperCase() === id);
+      const id = target;
+      const posIdx = s.queue.findIndex((x) => normalizeUid(x) === id);
+      const inIdx = s.in.findIndex((x) => normalizeUid(x) === id);
       const queuePosition = posIdx >= 0 ? posIdx + 1 : -1;
       const inside = inIdx >= 0;
       const freeSlots = s.freeSlots;
       const next = s.queue.length > 0 ? s.queue[0] : null;
-      const isTurn = freeSlots > 0 && next === uid;
+      const isTurn = freeSlots > 0 && normalizeUid(next) === id;
       setStatus({
         uid,
         queuePosition,

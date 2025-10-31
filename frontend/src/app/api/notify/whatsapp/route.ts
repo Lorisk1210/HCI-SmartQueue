@@ -16,10 +16,23 @@ import twilio from 'twilio';
 // =====================================================================
 // Twilio credentials from environment variables. These must be set for
 // WhatsApp notifications to work.
+function ensureWhatsAppAddress(value?: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const withoutPrefix = trimmed.replace(/^whatsapp:/i, '').trim();
+  if (!withoutPrefix) return null;
+  return `whatsapp:${withoutPrefix}`;
+}
+
 const accountSid = process.env.TWILIO_ACCOUNT_SID;
 const authToken = process.env.TWILIO_AUTH_TOKEN;
-const FROM = process.env.TWILIO_FROM;
-const TO = process.env.TWILIO_TO;
+const FROM = ensureWhatsAppAddress(process.env.TWILIO_FROM);
+const TO = ensureWhatsAppAddress(process.env.TWILIO_TO);
+
+// Optional: Content SIDs for using Twilio Content API (approved templates)
+const CONTENT_SID_QUEUED = process.env.TWILIO_CONTENT_SID_QUEUED;
+const CONTENT_SID_READY = process.env.TWILIO_CONTENT_SID_READY;
 
 if (!accountSid || !authToken || !FROM || !TO) {
   throw new Error('Missing required Twilio environment variables');
@@ -31,69 +44,88 @@ const client = twilio(accountSid, authToken);
 // POST Handler - Send Notification
 // =====================================================================
 // Receives notification type and optional nextTicket UID, then sends the
-// appropriate WhatsApp message. For "ready" type, includes reply instructions
-// that the webhook can process.
+// appropriate WhatsApp message. Uses Twilio Content API if content SIDs are
+// configured, otherwise falls back to basic body text.
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const { type, nextTicket } = body;
 
-    let message = '';
-    let actions: Array<{ title: string; type: string }> = [];
-
-    if (type === 'queued') {
-      message = "✅ You have been added to the queue. We'll notify you when it's your turn!";
-      // No buttons for queued - user can't cancel via WhatsApp yet
-    } else if (type === 'ready') {
-      message = "📚 A slot is available! Do you still want to enter? You have 5 minutes to confirm.";
-      // Add interactive buttons for confirm/leave
-      actions = [
-        {
-          title: 'Yes, I want to enter',
-          type: 'quick_reply'
-        },
-        {
-          title: 'No, leave queue',
-          type: 'quick_reply'
-        }
-      ];
-    } else {
+    if (type !== 'queued' && type !== 'ready') {
       return NextResponse.json(
         { ok: false, error: 'Invalid notification type' },
         { status: 400 }
       );
     }
 
-    // For "ready" type, send with interactive options
-    if (type === 'ready' && actions.length > 0) {
-      // Note: True WhatsApp clickable buttons require approved message templates from WhatsApp
-      // For now, we send a message with clear reply instructions
-      // Users can reply with options - the webhook will handle responses
-      const interactiveMsg = await client.messages.create({
-        from: FROM,
-        to: TO,
-        body: message + `\n\n📱 Reply:\n\n1️⃣ or YES - Confirm entry\n2️⃣ or NO - Leave queue\n\nYou have 5 minutes to reply.`,
-      });
+    // =====================================================================
+    // Content API Approach (Preferred)
+    // =====================================================================
+    // If content SIDs are configured, use the Content API with approved templates.
+    // This is required for production WhatsApp notifications with interactive buttons.
+    if (type === 'queued' && CONTENT_SID_QUEUED) {
+      try {
+        const msg = await client.messages.create({
+          from: FROM,
+          to: TO,
+          contentSid: CONTENT_SID_QUEUED,
+          contentVariables: JSON.stringify({}), // Add variables if your template needs them
+        });
 
-      return NextResponse.json({
-        ok: true,
-        sid: interactiveMsg.sid,
-        message: 'Notification with buttons sent successfully',
-      });
-    } else {
-      // Regular message without buttons
-      const msg = await client.messages.create({
-        from: FROM,
-        body: message,
-        to: TO,
-      });
-
-      return NextResponse.json({
-        ok: true,
-        sid: msg.sid,
-        message: 'Notification sent successfully',
-      });
+        return NextResponse.json({
+          ok: true,
+          sid: msg.sid,
+          message: 'Notification sent successfully (Content API)',
+        });
+      } catch (contentError: any) {
+        console.error('Content API error for queued:', contentError);
+        // Fall through to basic message
+      }
     }
+
+    if (type === 'ready' && CONTENT_SID_READY) {
+      try {
+        const msg = await client.messages.create({
+          from: FROM,
+          to: TO,
+          contentSid: CONTENT_SID_READY,
+          contentVariables: JSON.stringify({}), // Add variables if your template needs them
+        });
+
+        return NextResponse.json({
+          ok: true,
+          sid: msg.sid,
+          message: 'Notification sent successfully (Content API)',
+        });
+      } catch (contentError: any) {
+        console.error('Content API error for ready:', contentError);
+        // Fall through to basic message
+      }
+    }
+
+    // =====================================================================
+    // Fallback: Basic Message API
+    // =====================================================================
+    // If Content API is not configured or fails, fall back to basic text messages.
+    // Note: Basic text messages may have delivery restrictions on WhatsApp.
+    let message = '';
+    if (type === 'queued') {
+      message = "✅ You have been added to the queue. We'll notify you when it's your turn!";
+    } else if (type === 'ready') {
+      message = "📚 A slot is available! Do you still want to enter?\n\n📱 Reply:\n\n1️⃣ or YES - Confirm entry\n2️⃣ or NO - Leave queue\n\nYou have 5 minutes to reply.";
+    }
+
+    const msg = await client.messages.create({
+      from: FROM,
+      to: TO,
+      body: message,
+    });
+
+    return NextResponse.json({
+      ok: true,
+      sid: msg.sid,
+      message: 'Notification sent successfully (fallback)',
+    });
   } catch (error: any) {
     console.error('Twilio error:', error);
     return NextResponse.json(

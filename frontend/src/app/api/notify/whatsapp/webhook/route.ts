@@ -13,6 +13,19 @@ import { NextRequest, NextResponse } from 'next/server';
 const DEFAULT_ARDUINO_BASE_URL = 'http://172.20.10.2';
 
 // =====================================================================
+// Environment Helpers
+// =====================================================================
+// Normalises WhatsApp numbers by stripping the protocol prefix so we can
+// safely compare values coming from Twilio (which always include it) with
+// the value configured via environment variables (which might or might not).
+function normaliseWhatsAppNumber(value?: string | null): string | null {
+  if (!value) return null;
+  return value.replace(/^whatsapp:/i, '').trim();
+}
+
+const configuredRecipient = normaliseWhatsAppNumber(process.env.TWILIO_TO);
+
+// =====================================================================
 // Helper Functions
 // =====================================================================
 function getArduinoBaseUrl(): string {
@@ -41,7 +54,15 @@ export async function POST(req: NextRequest) {
     // =====================================================================
     // Only process messages from the verified number to prevent unauthorized
     // access to queue management functions.
-    if (!from || !from.includes('+41774401715')) {
+    if (!configuredRecipient) {
+      console.error('WhatsApp webhook misconfigured: TWILIO_TO is not set.');
+      return new NextResponse('Server configuration error', { status: 500 });
+    }
+
+    const fromNumber = normaliseWhatsAppNumber(from);
+
+    if (!fromNumber || fromNumber !== configuredRecipient) {
+      console.warn('WhatsApp webhook rejected message from unexpected sender', { from });
       return new NextResponse('Unauthorized', { status: 403 });
     }
 
