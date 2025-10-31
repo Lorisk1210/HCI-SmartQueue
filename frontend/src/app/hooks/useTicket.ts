@@ -25,6 +25,7 @@ export type TicketStatus = {
   inCount: number;
   // True if this user is first in queue and there are free slots available
   isTurn: boolean;
+  queueCount: number;
 };
 
 // =====================================================================
@@ -43,6 +44,7 @@ export function useTicket(uid: string): TicketStatus {
     maxSlots: 0,
     inCount: 0,
     isTurn: false,
+    queueCount: 0,
   });
 
   // =====================================================================
@@ -61,7 +63,7 @@ export function useTicket(uid: string): TicketStatus {
       const inside = inIdx >= 0;
       const freeSlots = s.freeSlots;
       const next = s.queue.length > 0 ? s.queue[0] : null;
-      const isTurn = freeSlots > 0 && next === uid;
+      const isTurn = freeSlots > 0 && (next || '').toUpperCase() === id;
       setStatus({
         uid,
         queuePosition,
@@ -70,6 +72,7 @@ export function useTicket(uid: string): TicketStatus {
         maxSlots: s.maxSlots,
         inCount: s.inCount,
         isTurn,
+        queueCount: s.queue.length,
       });
     });
     return () => {

@@ -194,13 +194,13 @@ export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinu
   }, [gambleSummary]);
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-white/95 backdrop-blur"
       onClick={handleBackgroundClick}
       onTouchEnd={handleBackgroundClick}
     >
       <div
-        className="w-full h-full flex flex-col items-center justify-center text-center p-10"
+        className="relative w-full h-full flex flex-col items-center justify-center text-center p-10"
       >
         <h2 className="uppercase tracking-[0.2em] text-[15px] text-neutral-700">RFID Scan</h2>
         <div className="mt-6">
@@ -250,9 +250,16 @@ export default function ScanOverlay({ visible, kind, uid, queuePosition, etaMinu
           ) : null}
         </div>
         {gambleOpen && uid ? (
-          <div className="mt-10 w-full flex justify-center" onClick={(evt) => evt.stopPropagation()} onTouchEnd={(evt) => evt.stopPropagation()}>
-            <GambleBlackjack uid={uid} onClose={handleCloseGamble} onFinished={handleGambleFinished} />
-          </div>
+          <>
+            <div className="absolute inset-0 z-10 bg-white/90 backdrop-blur-sm" aria-hidden="true" />
+            <div
+              className="absolute inset-0 z-20 flex items-center justify-center px-6"
+              onClick={(evt) => evt.stopPropagation()}
+              onTouchEnd={(evt) => evt.stopPropagation()}
+            >
+              <GambleBlackjack uid={uid} onClose={handleCloseGamble} onFinished={handleGambleFinished} />
+            </div>
+          </>
         ) : null}
       </div>
     </div>

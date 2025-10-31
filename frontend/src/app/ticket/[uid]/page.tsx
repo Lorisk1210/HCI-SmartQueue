@@ -9,9 +9,10 @@
 // to leave the queue. It also handles entry confirmation when they become first
 // in line with an available slot.
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useTicket } from "@/app/hooks/useTicket";
+import GambleBlackjack, { GambleSummary } from "@/app/components/GambleBlackjack";
 
 export default function TicketPage() {
   // =====================================================================
@@ -30,7 +31,7 @@ export default function TicketPage() {
   // =====================================================================
   // The useTicket hook connects to the SSE stream and provides live updates about
   // this user's position, whether they're inside, slot availability, and if it's their turn.
-  const { queuePosition, inside, freeSlots, maxSlots, inCount, isTurn } = useTicket(uid);
+  const { queuePosition, inside, freeSlots, maxSlots, inCount, isTurn, queueCount } = useTicket(uid);
   
   // =====================================================================
   // Component State
@@ -42,6 +43,8 @@ export default function TicketPage() {
   const [pendingEntryConfirmation, setPendingEntryConfirmation] = useState<{
     timeRemainingMs: number;
   } | null>(null);
+  const [gambleOpen, setGambleOpen] = useState(false);
+  const [gambleSummary, setGambleSummary] = useState<GambleSummary | null>(null);
 
   // =====================================================================
   // Entry Confirmation Timer
@@ -209,6 +212,36 @@ export default function TicketPage() {
         : (isTurn ? `A slot is free — it's your turn now!`
                   : (freeSlots > 0 ? `A slot is free — approaching…` : `Waiting for your turn…`)));
 
+  const eligibleForGamble = useMemo(() => {
+    if (inside) return false;
+    if (queuePosition <= 1) return false;
+    if (typeof queueCount !== 'number') return false;
+    return queueCount > queuePosition;
+  }, [inside, queuePosition, queueCount]);
+
+  const gambleCopy = useMemo(() => {
+    if (!gambleSummary) return null;
+    if (gambleSummary.result === "push") return "Blackjack push — queue unchanged.";
+    if (!gambleSummary.movement?.direction) return "Result recorded. Queue unchanged.";
+    if (!gambleSummary.movement.applied) return "Result recorded, but queue could not update.";
+    if (gambleSummary.movement.direction === "up") return "You moved up by one slot.";
+    return "You dropped one slot.";
+  }, [gambleSummary]);
+
+  function openGamble() {
+    setGambleSummary(null);
+    setGambleOpen(true);
+  }
+
+  function handleCloseGamble(options?: { cancelled?: boolean }) {
+    setGambleOpen(false);
+    if (options?.cancelled) return;
+  }
+
+  function handleGambleFinished(summary: GambleSummary) {
+    setGambleSummary(summary);
+  }
+
   return (
     <main className="min-h-screen bg-white text-black">
       <div className="mx-auto max-w-[520px] px-5 py-10">
@@ -217,6 +250,17 @@ export default function TicketPage() {
           <p className="font-serif leading-none text-black text-[clamp(36px,10vw,64px)]">{title}</p>
           <p className="mt-3 text-neutral-700 text-base">{subtitle}</p>
           <p className="mt-2 text-neutral-500 text-xs">UID {uid}</p>
+          {eligibleForGamble ? (
+            <button
+              onClick={openGamble}
+              className="mt-6 inline-flex items-center rounded-full border border-neutral-400/60 px-4 py-2 text-[11px] uppercase tracking-[0.3em] text-neutral-500 transition hover:bg-neutral-100"
+            >
+              Gamble Slot
+            </button>
+          ) : null}
+          {gambleCopy ? (
+            <div className="mt-3 text-xs text-neutral-500">{gambleCopy}</div>
+          ) : null}
           {!inside && queuePosition > 0 ? (
             <div className="mt-8 grid grid-cols-2 gap-3">
               <div className="rounded-lg border border-black/10 p-4">
@@ -245,6 +289,13 @@ export default function TicketPage() {
           ) : null}
           {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
         </div>
+        {gambleOpen && eligibleForGamble ? (
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-white/90 px-6 backdrop-blur" onClick={(e) => e.stopPropagation()}>
+            <div onClick={(e) => e.stopPropagation()}>
+              <GambleBlackjack uid={uid} onClose={handleCloseGamble} onFinished={handleGambleFinished} />
+            </div>
+          </div>
+        ) : null}
         
         {/* 
           =====================================================================
