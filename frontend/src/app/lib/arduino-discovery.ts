@@ -9,12 +9,21 @@
 const DEFAULT_ARDUINO_BASE_URL = 'http://172.20.10.2';
 
 // =====================================================================
+// Hotspot Candidate Generation
+// =====================================================================
+// iPhone hotspots assign addresses in the 172.20.10.x range sequentially to
+// connected devices. When the frontend moves off the Raspberry Pi, the Arduino
+// may no longer receive the .2 address. Generate a list of likely candidates so
+// discovery remains reliable regardless of join order.
+const HOTSPOT_RANGE = Array.from({ length: 13 }, (_, idx) => `http://172.20.10.${idx + 2}`); // 172.20.10.2 - 172.20.10.14
+
+// =====================================================================
 // Common Arduino IP Patterns
 // =====================================================================
 // List of common IP addresses to try when discovering the Arduino. Tried in
 // priority order, with iPhone hotspot range first (most common use case).
 const COMMON_ARDUINO_IPS = [
-  'http://172.20.10.2',   // iPhone hotspot default - PRIMARY
+  ...HOTSPOT_RANGE,
   'http://192.168.4.1',    // ESP32 AP default
   'http://192.168.1.1',    // Common router IP
   'http://192.168.0.1',    // Common router IP
